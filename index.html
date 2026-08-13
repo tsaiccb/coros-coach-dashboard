@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>近一年每週跑量與平均配速</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --primary-color: #3b82f6;
+      --pace-color: #f97316;
+      --hr-color: #ef4444;
+    }
+    .bar-rect {
+      transition: opacity 0.2s, height 0.3s ease, y 0.3s ease;
+    }
+    .bar-rect:hover {
+      opacity: 0.85;
+      filter: brightness(1.15);
+    }
+    .pace-dot {
+      transition: r 0.2s, stroke-width 0.2s;
+    }
+    .pace-dot:hover {
+      r: 6;
+      stroke-width: 3;
+    }
+    .custom-scroll::-webkit-scrollbar {
+      height: 6px;
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.4);
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--app-foreground)] font-[var(--vscode-font-family)] antialiased p-4 md:p-6">
+  <div class="max-w-6xl mx-auto space-y-6">
+    
+    <!-- Top Header -->
+    <div class="bg-[var(--app-card)] text-[var(--app-foreground)] border border-[var(--app-border)] rounded-2xl p-5 md:p-6 shadow-sm">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center justify-center p-2 rounded-xl bg-blue-500/10 text-blue-500 text-xl font-bold">🏃‍♂️</span>
+            <h1 class="text-xl md:text-2xl font-bold tracking-tight text-[var(--app-foreground)]">近一年 COROS 跑步週數據分析</h1>
+          </div>
+          <p class="text-sm text-[var(--app-muted-foreground)] mt-1">統計週期：2025/08/11 ~ 2026/08/16（共 53 週、195 次運動）</p>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="flex items-center gap-2 bg-[var(--app-background)] border border-[var(--app-border)] p-1 rounded-xl">
+          <button onclick="setTimeRange(13)" id="btn-13" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all text-[var(--app-muted-foreground)] hover:text-[var(--app-foreground)]">近 3 個月</button>
+          <button onclick="setTimeRange(26)" id="btn-26" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all text-[var(--app-muted-foreground)] hover:text-[var(--app-foreground)]">近 6 個月</button>
+          <button onclick="setTimeRange(53)" id="btn-53" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all bg-blue-500 text-white shadow-sm">近 1 年 (全)</button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Cards Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-6">
+        <div class="p-3.5 rounded-xl bg-[var(--app-background)] border border-[var(--app-border)]">
+          <span class="text-xs font-medium text-[var(--app-muted-foreground)]">年度總跑量</span>
+          <div class="text-xl font-bold mt-1 text-blue-500" id="kpi-total-dist">1,207.5 <span class="text-xs font-normal text-[var(--app-muted-foreground)]">km</span></div>
+        </div>
+        <div class="p-3.5 rounded-xl bg-[var(--app-background)] border border-[var(--app-border)]">
+          <span class="text-xs font-medium text-[var(--app-muted-foreground)]">週平均跑量</span>
+          <div class="text-xl font-bold mt-1 text-blue-400" id="kpi-avg-dist">22.8 <span class="text-xs font-normal text-[var(--app-muted-foreground)]">km/週</span></div>
+        </div>
+        <div class="p-3.5 rounded-xl bg-[var(--app-background)] border border-[var(--app-border)]">
+          <span class="text-xs font-medium text-[var(--app-muted-foreground)]">平均配速</span>
+          <div class="text-xl font-bold mt-1 text-orange-500" id="kpi-avg-pace">5:30 <span class="text-xs font-normal text-[var(--app-muted-foreground)]">/km</span></div>
+        </div>
+        <div class="p-3.5 rounded-xl bg-[var(--app-background)] border border-[var(--app-border)]">
+          <span class="text-xs font-medium text-[var(--app-muted-foreground)]">跑步總次數</span>
+          <div class="text-xl font-bold mt-1 text-[var(--app-foreground)]" id="kpi-total-runs">195 <span class="text-xs font-normal text-[var(--app-muted-foreground)]">次</span></div>
+        </div>
+        <div class="p-3.5 rounded-xl bg-[var(--app-background)] border border-[var(--app-border)]">
+          <span class="text-xs font-medium text-[var(--app-muted-foreground)]">單週最高跑量</span>
+          <div class="text-xl font-bold mt-1 text-emerald-500" id="kpi-max-dist">48.6 <span class="text-xs font-normal text-[var(--app-muted-foreground)]">km</span></div>
+        </div>
+        <div class="p-3.5 rounded-xl bg-[var(--app-background)] border border-[var(--app-border)]">
+          <span class="text-xs font-medium text-[var(--app-muted-foreground)]">最快單週均速</span>
+          <div class="text-xl font-bold mt-1 text-purple-500" id="kpi-best-pace">4:29 <span class="text-xs font-normal text-[var(--app-muted-foreground)]">/km</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Chart Section -->
+    <div class="bg-[var(--app-card)] text-[var(--app-foreground)] border border-[var(--app-border)] rounded-2xl p-5 md:p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <div class="flex items-center gap-5 text-sm">
+          <!-- Legend -->
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggle-dist" checked onchange="renderChart()" class="w-4 h-4 rounded text-blue-500 focus:ring-0">
+            <span class="inline-block w-3 h-3 rounded bg-gradient-to-t from-blue-600 to-cyan-400"></span>
+            <span class="font-medium">週跑量 (km)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggle-pace" checked onchange="renderChart()" class="w-4 h-4 rounded text-orange-500 focus:ring-0">
+            <span class="inline-block w-3 h-1 rounded bg-orange-500"></span>
+            <span class="font-medium">平均配速 (分:秒/km)</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer select-none">
+            <input type="checkbox" id="toggle-hr" onchange="renderChart()" class="w-4 h-4 rounded text-red-500 focus:ring-0">
+            <span class="inline-block w-3 h-1 rounded bg-red-400 border-dashed"></span>
+            <span class="font-medium">平均心率 (bpm)</span>
+          </label>
+        </div>
+
+        <div class="text-xs text-[var(--app-muted-foreground)]">
+          💡 懸停或點擊圖表柱狀查看詳細週數據
+        </div>
+      </div>
+
+      <!-- Responsive Chart Canvas / SVG Container -->
+      <div class="relative w-full overflow-hidden" id="chart-container" style="min-height: 420px;">
+        <svg id="main-svg" class="w-full h-auto select-none" viewBox="0 0 1000 440"></svg>
+        
+        <!-- Interactive Tooltip Overlay -->
+        <div id="chart-tooltip" class="absolute pointer-events-none opacity-0 transition-opacity duration-150 bg-slate-900/95 text-white dark:bg-slate-800/95 border border-slate-700 shadow-xl rounded-xl p-3.5 text-xs z-30 min-w-[190px] backdrop-blur-sm">
+          <div class="font-bold text-sm text-slate-200 border-b border-slate-700/80 pb-1.5 mb-2" id="tt-date">2026/08/10 ~ 08/16</div>
+          <div class="space-y-1.5">
+            <div class="flex justify-between items-center text-blue-400">
+              <span>🏃 週總跑量:</span>
+              <span class="font-bold text-sm" id="tt-dist">14.52 km</span>
+            </div>
+            <div class="flex justify-between items-center text-orange-400">
+              <span>⏱️ 平均配速:</span>
+              <span class="font-bold text-sm" id="tt-pace">5:18 /km</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-300">
+              <span>📅 跑步次數:</span>
+              <span class="font-semibold" id="tt-runs">3 次</span>
+            </div>
+            <div class="flex justify-between items-center text-red-400" id="tt-hr-row">
+              <span>❤️ 平均心率:</span>
+              <span class="font-semibold" id="tt-hr">165 bpm</span>
+            </div>
+            <div class="flex justify-between items-center text-amber-400">
+              <span>🔥 消耗熱量:</span>
+              <span class="font-semibold" id="tt-cal">1,020 kcal</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Weekly Breakdown Table -->
+    <div class="bg-[var(--app-card)] text-[var(--app-foreground)] border border-[var(--app-border)] rounded-2xl p-5 md:p-6 shadow-sm">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-bold flex items-center gap-2">
+          <span>📋</span> 每週跑步明細紀錄
+        </h2>
+        <span class="text-xs text-[var(--app-muted-foreground)]" id="table-count-label">顯示 53 週</span>
+      </div>
+      <div class="overflow-x-auto custom-scroll max-h-80 border border-[var(--app-border)] rounded-xl">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-[var(--app-background)] text-[var(--app-muted-foreground)] sticky top-0 border-b border-[var(--app-border)]">
+            <tr>
+              <th class="py-2.5 px-3 font-semibold">週別區間</th>
+              <th class="py-2.5 px-3 font-semibold text-right">週跑量 (km)</th>
+              <th class="py-2.5 px-3 font-semibold text-right">平均配速 (/km)</th>
+              <th class="py-2.5 px-3 font-semibold text-right">跑步次數</th>
+              <th class="py-2.5 px-3 font-semibold text-right">平均心率</th>
+              <th class="py-2.5 px-3 font-semibold text-right">總消耗 (kcal)</th>
+            </tr>
+          </thead>
+          <tbody id="table-body" class="divide-y divide-[var(--app-border)]">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const ALL_DATA = [{"week_start": "2025-08-11", "week_end": "2025-08-17", "label": "08/11~08/17", "year_week": "2025-W33", "full_label": "2025/08/11 ~ 08/17", "distance_km": 14.03, "duration_sec": 4532, "run_count": 1, "pace_str": "5:23", "pace_sec_per_km": 323.0, "pace_decimal": 5.38, "avg_hr": 165.0, "calories": 1010}, {"week_start": "2025-08-18", "week_end": "2025-08-24", "label": "08/18~08/24", "year_week": "2025-W34", "full_label": "2025/08/18 ~ 08/24", "distance_km": 18.29, "duration_sec": 6153, "run_count": 3, "pace_str": "5:36", "pace_sec_per_km": 336.4, "pace_decimal": 5.61, "avg_hr": 163.2, "calories": 1325}, {"week_start": "2025-08-25", "week_end": "2025-08-31", "label": "08/25~08/31", "year_week": "2025-W35", "full_label": "2025/08/25 ~ 08/31", "distance_km": 9.8, "duration_sec": 3278, "run_count": 5, "pace_str": "5:34", "pace_sec_per_km": 334.5, "pace_decimal": 5.57, "avg_hr": 155.0, "calories": 642}, {"week_start": "2025-09-01", "week_end": "2025-09-07", "label": "09/01~09/07", "year_week": "2025-W36", "full_label": "2025/09/01 ~ 09/07", "distance_km": 14.15, "duration_sec": 4899, "run_count": 2, "pace_str": "5:46", "pace_sec_per_km": 346.2, "pace_decimal": 5.77, "avg_hr": 163.6, "calories": 1066}, {"week_start": "2025-09-08", "week_end": "2025-09-14", "label": "09/08~09/14", "year_week": "2025-W37", "full_label": "2025/09/08 ~ 09/14", "distance_km": 16.09, "duration_sec": 5104, "run_count": 3, "pace_str": "5:17", "pace_sec_per_km": 317.2, "pace_decimal": 5.29, "avg_hr": 159.3, "calories": 1089}, {"week_start": "2025-09-15", "week_end": "2025-09-21", "label": "09/15~09/21", "year_week": "2025-W38", "full_label": "2025/09/15 ~ 09/21", "distance_km": 11.75, "duration_sec": 3803, "run_count": 3, "pace_str": "5:24", "pace_sec_per_km": 323.7, "pace_decimal": 5.39, "avg_hr": 160.2, "calories": 805}, {"week_start": "2025-09-22", "week_end": "2025-09-28", "label": "09/22~09/28", "year_week": "2025-W39", "full_label": "2025/09/22 ~ 09/28", "distance_km": 22.37, "duration_sec": 7506, "run_count": 5, "pace_str": "5:36", "pace_sec_per_km": 335.5, "pace_decimal": 5.59, "avg_hr": 161.4, "calories": 1597}, {"week_start": "2025-09-29", "week_end": "2025-10-05", "label": "09/29~10/05", "year_week": "2025-W40", "full_label": "2025/09/29 ~ 10/05", "distance_km": 10.96, "duration_sec": 3363, "run_count": 2, "pace_str": "5:07", "pace_sec_per_km": 306.8, "pace_decimal": 5.11, "avg_hr": 165.4, "calories": 759}, {"week_start": "2025-10-06", "week_end": "2025-10-12", "label": "10/06~10/12", "year_week": "2025-W41", "full_label": "2025/10/06 ~ 10/12", "distance_km": 18.01, "duration_sec": 6825, "run_count": 4, "pace_str": "6:19", "pace_sec_per_km": 379.0, "pace_decimal": 6.32, "avg_hr": 161.3, "calories": 1439}, {"week_start": "2025-10-13", "week_end": "2025-10-19", "label": "10/13~10/19", "year_week": "2025-W42", "full_label": "2025/10/13 ~ 10/19", "distance_km": 14.17, "duration_sec": 5359, "run_count": 2, "pace_str": "6:18", "pace_sec_per_km": 378.2, "pace_decimal": 6.3, "avg_hr": 155.9, "calories": 1073}, {"week_start": "2025-10-20", "week_end": "2025-10-26", "label": "10/20~10/26", "year_week": "2025-W43", "full_label": "2025/10/20 ~ 10/26", "distance_km": 16.67, "duration_sec": 5084, "run_count": 3, "pace_str": "5:05", "pace_sec_per_km": 305.0, "pace_decimal": 5.08, "avg_hr": 172.6, "calories": 1216}, {"week_start": "2025-10-27", "week_end": "2025-11-02", "label": "10/27~11/02", "year_week": "2025-W44", "full_label": "2025/10/27 ~ 11/02", "distance_km": 18.8, "duration_sec": 6230, "run_count": 3, "pace_str": "5:31", "pace_sec_per_km": 331.4, "pace_decimal": 5.52, "avg_hr": 160.7, "calories": 1293}, {"week_start": "2025-11-03", "week_end": "2025-11-09", "label": "11/03~11/09", "year_week": "2025-W45", "full_label": "2025/11/03 ~ 11/09", "distance_km": 23.15, "duration_sec": 6976, "run_count": 2, "pace_str": "5:01", "pace_sec_per_km": 301.3, "pace_decimal": 5.02, "avg_hr": 173.7, "calories": 1733}, {"week_start": "2025-11-10", "week_end": "2025-11-16", "label": "11/10~11/16", "year_week": "2025-W46", "full_label": "2025/11/10 ~ 11/16", "distance_km": 25.96, "duration_sec": 8486, "run_count": 3, "pace_str": "5:27", "pace_sec_per_km": 326.9, "pace_decimal": 5.45, "avg_hr": 161.2, "calories": 1830}, {"week_start": "2025-11-17", "week_end": "2025-11-23", "label": "11/17~11/23", "year_week": "2025-W47", "full_label": "2025/11/17 ~ 11/23", "distance_km": 17.19, "duration_sec": 4626, "run_count": 4, "pace_str": "4:29", "pace_sec_per_km": 269.1, "pace_decimal": 4.49, "avg_hr": 170.7, "calories": 1177}, {"week_start": "2025-11-24", "week_end": "2025-11-30", "label": "11/24~11/30", "year_week": "2025-W48", "full_label": "2025/11/24 ~ 11/30", "distance_km": 22.99, "duration_sec": 7716, "run_count": 3, "pace_str": "5:36", "pace_sec_per_km": 335.6, "pace_decimal": 5.59, "avg_hr": 153.7, "calories": 1633}, {"week_start": "2025-12-01", "week_end": "2025-12-07", "label": "12/01~12/07", "year_week": "2025-W49", "full_label": "2025/12/01 ~ 12/07", "distance_km": 31.07, "duration_sec": 9959, "run_count": 4, "pace_str": "5:21", "pace_sec_per_km": 320.5, "pace_decimal": 5.34, "avg_hr": 160.5, "calories": 2252}, {"week_start": "2025-12-08", "week_end": "2025-12-14", "label": "12/08~12/14", "year_week": "2025-W50", "full_label": "2025/12/08 ~ 12/14", "distance_km": 48.61, "duration_sec": 15095, "run_count": 6, "pace_str": "5:11", "pace_sec_per_km": 310.5, "pace_decimal": 5.18, "avg_hr": 157.9, "calories": 3302}, {"week_start": "2025-12-15", "week_end": "2025-12-21", "label": "12/15~12/21", "year_week": "2025-W51", "full_label": "2025/12/15 ~ 12/21", "distance_km": 37.91, "duration_sec": 11866, "run_count": 6, "pace_str": "5:13", "pace_sec_per_km": 313.0, "pace_decimal": 5.22, "avg_hr": 156.9, "calories": 2629}, {"week_start": "2025-12-22", "week_end": "2025-12-28", "label": "12/22~12/28", "year_week": "2025-W52", "full_label": "2025/12/22 ~ 12/28", "distance_km": 33.08, "duration_sec": 9981, "run_count": 5, "pace_str": "5:02", "pace_sec_per_km": 301.7, "pace_decimal": 5.03, "avg_hr": 160.8, "calories": 2185}, {"week_start": "2025-12-29", "week_end": "2026-01-04", "label": "12/29~01/04", "year_week": "2025-W01", "full_label": "2025/12/29 ~ 01/04", "distance_km": 10.81, "duration_sec": 3128, "run_count": 4, "pace_str": "4:49", "pace_sec_per_km": 289.4, "pace_decimal": 4.82, "avg_hr": 152.6, "calories": 723}, {"week_start": "2026-01-05", "week_end": "2026-01-11", "label": "01/05~01/11", "year_week": "2026-W02", "full_label": "2026/01/05 ~ 01/11", "distance_km": 34.0, "duration_sec": 9913, "run_count": 3, "pace_str": "4:52", "pace_sec_per_km": 291.6, "pace_decimal": 4.86, "avg_hr": 157.1, "calories": 2330}, {"week_start": "2026-01-12", "week_end": "2026-01-18", "label": "01/12~01/18", "year_week": "2026-W03", "full_label": "2026/01/12 ~ 01/18", "distance_km": 28.5, "duration_sec": 9804, "run_count": 5, "pace_str": "5:44", "pace_sec_per_km": 344.0, "pace_decimal": 5.73, "avg_hr": 153.9, "calories": 1901}, {"week_start": "2026-01-19", "week_end": "2026-01-25", "label": "01/19~01/25", "year_week": "2026-W04", "full_label": "2026/01/19 ~ 01/25", "distance_km": 39.64, "duration_sec": 12694, "run_count": 5, "pace_str": "5:20", "pace_sec_per_km": 320.2, "pace_decimal": 5.34, "avg_hr": 151.0, "calories": 2503}, {"week_start": "2026-01-26", "week_end": "2026-02-01", "label": "01/26~02/01", "year_week": "2026-W05", "full_label": "2026/01/26 ~ 02/01", "distance_km": 35.09, "duration_sec": 11282, "run_count": 7, "pace_str": "5:22", "pace_sec_per_km": 321.5, "pace_decimal": 5.36, "avg_hr": 151.6, "calories": 2435}, {"week_start": "2026-02-02", "week_end": "2026-02-08", "label": "02/02~02/08", "year_week": "2026-W06", "full_label": "2026/02/02 ~ 02/08", "distance_km": 39.78, "duration_sec": 13253, "run_count": 7, "pace_str": "5:33", "pace_sec_per_km": 333.2, "pace_decimal": 5.55, "avg_hr": 132.4, "calories": 2098}, {"week_start": "2026-02-09", "week_end": "2026-02-15", "label": "02/09~02/15", "year_week": "2026-W07", "full_label": "2026/02/09 ~ 02/15", "distance_km": 27.56, "duration_sec": 8731, "run_count": 6, "pace_str": "5:17", "pace_sec_per_km": 316.8, "pace_decimal": 5.28, "avg_hr": 150.9, "calories": 1933}, {"week_start": "2026-02-16", "week_end": "2026-02-22", "label": "02/16~02/22", "year_week": "2026-W08", "full_label": "2026/02/16 ~ 02/22", "distance_km": 17.38, "duration_sec": 5892, "run_count": 2, "pace_str": "5:39", "pace_sec_per_km": 339.0, "pace_decimal": 5.65, "avg_hr": 151.9, "calories": 1223}, {"week_start": "2026-02-23", "week_end": "2026-03-01", "label": "02/23~03/01", "year_week": "2026-W09", "full_label": "2026/02/23 ~ 03/01", "distance_km": 23.57, "duration_sec": 7571, "run_count": 4, "pace_str": "5:21", "pace_sec_per_km": 321.2, "pace_decimal": 5.35, "avg_hr": 134.5, "calories": 1167}, {"week_start": "2026-03-02", "week_end": "2026-03-08", "label": "03/02~03/08", "year_week": "2026-W10", "full_label": "2026/03/02 ~ 03/08", "distance_km": 27.21, "duration_sec": 7782, "run_count": 2, "pace_str": "4:46", "pace_sec_per_km": 286.0, "pace_decimal": 4.77, "avg_hr": 168.5, "calories": 1909}, {"week_start": "2026-03-09", "week_end": "2026-03-15", "label": "03/09~03/15", "year_week": "2026-W11", "full_label": "2026/03/09 ~ 03/15", "distance_km": 17.36, "duration_sec": 6044, "run_count": 3, "pace_str": "5:48", "pace_sec_per_km": 348.2, "pace_decimal": 5.8, "avg_hr": 140.7, "calories": 911}, {"week_start": "2026-03-16", "week_end": "2026-03-22", "label": "03/16~03/22", "year_week": "2026-W12", "full_label": "2026/03/16 ~ 03/22", "distance_km": 14.62, "duration_sec": 5089, "run_count": 2, "pace_str": "5:48", "pace_sec_per_km": 348.1, "pace_decimal": 5.8, "avg_hr": 149.1, "calories": 1030}, {"week_start": "2026-03-23", "week_end": "2026-03-29", "label": "03/23~03/29", "year_week": "2026-W13", "full_label": "2026/03/23 ~ 03/29", "distance_km": 22.26, "duration_sec": 8304, "run_count": 4, "pace_str": "6:13", "pace_sec_per_km": 373.0, "pace_decimal": 6.22, "avg_hr": 141.7, "calories": 1577}, {"week_start": "2026-03-30", "week_end": "2026-04-05", "label": "03/30~04/05", "year_week": "2026-W14", "full_label": "2026/03/30 ~ 04/05", "distance_km": 17.56, "duration_sec": 6726, "run_count": 4, "pace_str": "6:23", "pace_sec_per_km": 383.0, "pace_decimal": 6.38, "avg_hr": 140.3, "calories": 1200}, {"week_start": "2026-04-06", "week_end": "2026-04-12", "label": "04/06~04/12", "year_week": "2026-W15", "full_label": "2026/04/06 ~ 04/12", "distance_km": 40.12, "duration_sec": 14219, "run_count": 7, "pace_str": "5:54", "pace_sec_per_km": 354.4, "pace_decimal": 5.91, "avg_hr": 146.4, "calories": 2718}, {"week_start": "2026-04-13", "week_end": "2026-04-19", "label": "04/13~04/19", "year_week": "2026-W16", "full_label": "2026/04/13 ~ 04/19", "distance_km": 14.73, "duration_sec": 5402, "run_count": 3, "pace_str": "6:07", "pace_sec_per_km": 366.7, "pace_decimal": 6.11, "avg_hr": 141.5, "calories": 988}, {"week_start": "2026-04-20", "week_end": "2026-04-26", "label": "04/20~04/26", "year_week": "2026-W17", "full_label": "2026/04/20 ~ 04/26", "distance_km": 22.3, "duration_sec": 7761, "run_count": 3, "pace_str": "5:48", "pace_sec_per_km": 348.0, "pace_decimal": 5.8, "avg_hr": 147.2, "calories": 1457}, {"week_start": "2026-04-27", "week_end": "2026-05-03", "label": "04/27~05/03", "year_week": "2026-W18", "full_label": "2026/04/27 ~ 05/03", "distance_km": 22.94, "duration_sec": 9417, "run_count": 5, "pace_str": "6:51", "pace_sec_per_km": 410.5, "pace_decimal": 6.84, "avg_hr": 129.3, "calories": 1378}, {"week_start": "2026-05-04", "week_end": "2026-05-10", "label": "05/04~05/10", "year_week": "2026-W19", "full_label": "2026/05/04 ~ 05/10", "distance_km": 38.02, "duration_sec": 13006, "run_count": 6, "pace_str": "5:42", "pace_sec_per_km": 342.1, "pace_decimal": 5.7, "avg_hr": 146.0, "calories": 2336}, {"week_start": "2026-05-11", "week_end": "2026-05-17", "label": "05/11~05/17", "year_week": "2026-W20", "full_label": "2026/05/11 ~ 05/17", "distance_km": 14.15, "duration_sec": 4674, "run_count": 3, "pace_str": "5:30", "pace_sec_per_km": 330.3, "pace_decimal": 5.51, "avg_hr": 144.3, "calories": 871}, {"week_start": "2026-05-18", "week_end": "2026-05-24", "label": "05/18~05/24", "year_week": "2026-W21", "full_label": "2026/05/18 ~ 05/24", "distance_km": 20.86, "duration_sec": 8679, "run_count": 4, "pace_str": "6:56", "pace_sec_per_km": 416.1, "pace_decimal": 6.93, "avg_hr": 140.6, "calories": 1313}, {"week_start": "2026-05-25", "week_end": "2026-05-31", "label": "05/25~05/31", "year_week": "2026-W22", "full_label": "2026/05/25 ~ 05/31", "distance_km": 24.12, "duration_sec": 8088, "run_count": 3, "pace_str": "5:35", "pace_sec_per_km": 335.3, "pace_decimal": 5.59, "avg_hr": 154.7, "calories": 1751}, {"week_start": "2026-06-01", "week_end": "2026-06-07", "label": "06/01~06/07", "year_week": "2026-W23", "full_label": "2026/06/01 ~ 06/07", "distance_km": 23.2, "duration_sec": 7024, "run_count": 3, "pace_str": "5:03", "pace_sec_per_km": 302.8, "pace_decimal": 5.05, "avg_hr": 130.5, "calories": 914}, {"week_start": "2026-06-08", "week_end": "2026-06-14", "label": "06/08~06/14", "year_week": "2026-W24", "full_label": "2026/06/08 ~ 06/14", "distance_km": 16.43, "duration_sec": 5505, "run_count": 2, "pace_str": "5:35", "pace_sec_per_km": 335.1, "pace_decimal": 5.58, "avg_hr": 157.6, "calories": 1164}, {"week_start": "2026-06-15", "week_end": "2026-06-21", "label": "06/15~06/21", "year_week": "2026-W25", "full_label": "2026/06/15 ~ 06/21", "distance_km": 22.72, "duration_sec": 7419, "run_count": 3, "pace_str": "5:27", "pace_sec_per_km": 326.5, "pace_decimal": 5.44, "avg_hr": 158.3, "calories": 1588}, {"week_start": "2026-06-22", "week_end": "2026-06-28", "label": "06/22~06/28", "year_week": "2026-W26", "full_label": "2026/06/22 ~ 06/28", "distance_km": 19.82, "duration_sec": 6512, "run_count": 2, "pace_str": "5:29", "pace_sec_per_km": 328.6, "pace_decimal": 5.48, "avg_hr": 127.4, "calories": 706}, {"week_start": "2026-06-29", "week_end": "2026-07-05", "label": "06/29~07/05", "year_week": "2026-W27", "full_label": "2026/06/29 ~ 07/05", "distance_km": 14.15, "duration_sec": 4553, "run_count": 3, "pace_str": "5:22", "pace_sec_per_km": 321.8, "pace_decimal": 5.36, "avg_hr": 160.8, "calories": 894}, {"week_start": "2026-07-06", "week_end": "2026-07-12", "label": "07/06~07/12", "year_week": "2026-W28", "full_label": "2026/07/06 ~ 07/12", "distance_km": 32.88, "duration_sec": 11342, "run_count": 4, "pace_str": "5:45", "pace_sec_per_km": 345.0, "pace_decimal": 5.75, "avg_hr": 125.5, "calories": 1310}, {"week_start": "2026-07-13", "week_end": "2026-07-19", "label": "07/13~07/19", "year_week": "2026-W29", "full_label": "2026/07/13 ~ 07/19", "distance_km": 19.81, "duration_sec": 6195, "run_count": 2, "pace_str": "5:13", "pace_sec_per_km": 312.7, "pace_decimal": 5.21, "avg_hr": 140.4, "calories": 938}, {"week_start": "2026-07-20", "week_end": "2026-07-26", "label": "07/20~07/26", "year_week": "2026-W30", "full_label": "2026/07/20 ~ 07/26", "distance_km": 27.27, "duration_sec": 8886, "run_count": 4, "pace_str": "5:26", "pace_sec_per_km": 325.9, "pace_decimal": 5.43, "avg_hr": 156.5, "calories": 1838}, {"week_start": "2026-07-27", "week_end": "2026-08-02", "label": "07/27~08/02", "year_week": "2026-W31", "full_label": "2026/07/27 ~ 08/02", "distance_km": 21.46, "duration_sec": 6812, "run_count": 5, "pace_str": "5:17", "pace_sec_per_km": 317.4, "pace_decimal": 5.29, "avg_hr": 158.8, "calories": 1459}, {"week_start": "2026-08-03", "week_end": "2026-08-09", "label": "08/03~08/09", "year_week": "2026-W32", "full_label": "2026/08/03 ~ 08/09", "distance_km": 17.56, "duration_sec": 5595, "run_count": 3, "pace_str": "5:19", "pace_sec_per_km": 318.6, "pace_decimal": 5.31, "avg_hr": 163.4, "calories": 1254}, {"week_start": "2026-08-10", "week_end": "2026-08-16", "label": "08/10~08/16", "year_week": "2026-W33", "full_label": "2026/08/10 ~ 08/16", "distance_km": 14.52, "duration_sec": 4618, "run_count": 3, "pace_str": "5:18", "pace_sec_per_km": 318.0, "pace_decimal": 5.3, "avg_hr": 165.4, "calories": 1073}];
+    let currentData = [...ALL_DATA];
+
+    function setTimeRange(weeks) {
+      document.querySelectorAll("[id^=btn-]").forEach(btn => {
+        btn.classList.remove("bg-blue-500", "text-white", "shadow-sm");
+        btn.classList.add("text-[var(--app-muted-foreground)]");
+      });
+      const activeBtn = document.getElementById("btn-" + weeks);
+      if (activeBtn) {
+        activeBtn.classList.remove("text-[var(--app-muted-foreground)]");
+        activeBtn.classList.add("bg-blue-500", "text-white", "shadow-sm");
+      }
+      currentData = ALL_DATA.slice(-weeks);
+      updateKPIs();
+      renderChart();
+      renderTable();
+    }
+
+    function formatPace(secPerKm) {
+      if (!secPerKm || secPerKm <= 0) return "-";
+      const min = Math.floor(secPerKm / 60);
+      const sec = Math.round(secPerKm % 60);
+      return `${min}:${sec < 10 ? "0" : ""}${sec}`;
+    }
+
+    function updateKPIs() {
+      const totalDist = currentData.reduce((acc, d) => acc + d.distance_km, 0);
+      const totalDur = currentData.reduce((acc, d) => acc + d.duration_sec, 0);
+      const totalRuns = currentData.reduce((acc, d) => acc + d.run_count, 0);
+      const avgDist = totalDist / currentData.length;
+      const avgPaceSec = totalDist > 0 ? (totalDur / totalDist) : 0;
+      
+      const maxDistObj = currentData.reduce((max, d) => d.distance_km > max.distance_km ? d : max, currentData[0]);
+      const validPaces = currentData.filter(d => d.pace_decimal && d.pace_decimal > 0);
+      const bestPaceObj = validPaces.reduce((min, d) => d.pace_decimal < min.pace_decimal ? d : min, validPaces[0]);
+
+      document.getElementById("kpi-total-dist").innerHTML = `${totalDist.toFixed(1)} <span class="text-xs font-normal text-[var(--app-muted-foreground)]">km</span>`;
+      document.getElementById("kpi-avg-dist").innerHTML = `${avgDist.toFixed(1)} <span class="text-xs font-normal text-[var(--app-muted-foreground)]">km/週</span>`;
+      document.getElementById("kpi-avg-pace").innerHTML = `${formatPace(avgPaceSec)} <span class="text-xs font-normal text-[var(--app-muted-foreground)]">/km</span>`;
+      document.getElementById("kpi-total-runs").innerHTML = `${totalRuns} <span class="text-xs font-normal text-[var(--app-muted-foreground)]">次</span>`;
+      document.getElementById("kpi-max-dist").innerHTML = `${maxDistObj ? maxDistObj.distance_km.toFixed(1) : 0} <span class="text-xs font-normal text-[var(--app-muted-foreground)]">km</span>`;
+      document.getElementById("kpi-best-pace").innerHTML = `${bestPaceObj ? bestPaceObj.pace_str : "-"} <span class="text-xs font-normal text-[var(--app-muted-foreground)]">/km</span>`;
+    }
+
+    function renderChart() {
+      const svg = document.getElementById("main-svg");
+      const showDist = document.getElementById("toggle-dist").checked;
+      const showPace = document.getElementById("toggle-pace").checked;
+      const showHr = document.getElementById("toggle-hr").checked;
+
+      const svgWidth = 1000;
+      const svgHeight = 440;
+      const margin = { top: 30, right: 65, bottom: 65, left: 65 };
+      const plotWidth = svgWidth - margin.left - margin.right;
+      const plotHeight = svgHeight - margin.top - margin.bottom;
+
+      // Distance Y Scale (0 to max)
+      const maxRawDist = Math.max(...currentData.map(d => d.distance_km), 10);
+      const maxDistY = Math.ceil(maxRawDist / 10) * 10;
+
+      // Pace Y Scale (e.g. 4:00 (240s) top, 7:00 (420s) bottom)
+      const minPaceSec = 240; // 4:00 /km (top)
+      const maxPaceSec = 450; // 7:30 /km (bottom)
+
+      // HR Y Scale (120 bpm bottom, 180 bpm top)
+      const minHr = 110;
+      const maxHr = 185;
+
+      const N = currentData.length;
+      const colWidth = plotWidth / N;
+      const barWidth = Math.max(3, Math.min(22, colWidth * 0.65));
+
+      let defs = `
+        <defs>
+          <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#38bdf8" />
+            <stop offset="100%" stop-color="#2563eb" stop-opacity="0.8" />
+          </linearGradient>
+          <linearGradient id="barHoverGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#67e8f9" />
+            <stop offset="100%" stop-color="#3b82f6" />
+          </linearGradient>
+          <linearGradient id="paceAreaGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#f97316" stop-opacity="0.25" />
+            <stop offset="100%" stop-color="#f97316" stop-opacity="0.0" />
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+      `;
+
+      // Background grid lines (Distance & Pace)
+      let gridHtml = "";
+      const distSteps = 5;
+      for (let i = 0; i <= distSteps; i++) {
+        const val = (maxDistY / distSteps) * i;
+        const y = margin.top + plotHeight - (val / maxDistY) * plotHeight;
+        gridHtml += `
+          <line x1="${margin.left}" y1="${y}" x2="${svgWidth - margin.right}" y2="${y}" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3,3" />
+          <text x="${margin.left - 10}" y="${y + 4}" text-anchor="end" fill="currentColor" fill-opacity="0.5" font-size="11">${val.toFixed(0)}</text>
+        `;
+      }
+
+      // Left axis label
+      gridHtml += `
+        <text x="${margin.left - 28}" y="${margin.top - 12}" text-anchor="middle" fill="#38bdf8" font-size="11" font-weight="bold">跑量 (km)</text>
+      `;
+
+      // Right axis labels (Pace)
+      if (showPace) {
+        const paceTicks = [
+          { sec: 240, label: "4:00" },
+          { sec: 270, label: "4:30" },
+          { sec: 300, label: "5:00" },
+          { sec: 330, label: "5:30" },
+          { sec: 360, label: "6:00" },
+          { sec: 390, label: "6:30" },
+          { sec: 420, label: "7:00" }
+        ];
+        paceTicks.forEach(tick => {
+          const y = margin.top + ((tick.sec - minPaceSec) / (maxPaceSec - minPaceSec)) * plotHeight;
+          gridHtml += `
+            <text x="${svgWidth - margin.right + 10}" y="${y + 4}" text-anchor="start" fill="#f97316" font-size="11">${tick.label}</text>
+          `;
+        });
+        gridHtml += `
+          <text x="${svgWidth - margin.right + 25}" y="${margin.top - 12}" text-anchor="middle" fill="#f97316" font-size="11" font-weight="bold">配速 (/km)</text>
+        `;
+      }
+
+      // X Axis dates
+      let xAxisHtml = "";
+      const labelInterval = N > 30 ? 4 : (N > 15 ? 2 : 1);
+      currentData.forEach((d, i) => {
+        if (i % labelInterval === 0 || i === N - 1) {
+          const x = margin.left + (i + 0.5) * colWidth;
+          const labelParts = d.label.split("~");
+          const shortDate = labelParts[0];
+          xAxisHtml += `
+            <text x="${x}" y="${margin.top + plotHeight + 18}" text-anchor="middle" fill="currentColor" fill-opacity="0.6" font-size="10">${shortDate}</text>
+          `;
+        }
+      });
+      xAxisHtml += `
+        <line x1="${margin.left}" y1="${margin.top + plotHeight}" x2="${svgWidth - margin.right}" y2="${margin.top + plotHeight}" stroke="currentColor" stroke-opacity="0.25" />
+      `;
+
+      // Draw Bars (Distance)
+      let barsHtml = "";
+      if (showDist) {
+        currentData.forEach((d, i) => {
+          const barH = (d.distance_km / maxDistY) * plotHeight;
+          const x = margin.left + (i + 0.5) * colWidth - barWidth / 2;
+          const y = margin.top + plotHeight - barH;
+          barsHtml += `
+            <rect id="bar-${i}" class="bar-rect cursor-pointer" x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="${Math.min(4, barWidth / 2)}" fill="url(#barGradient)" />
+          `;
+        });
+      }
+
+      // Draw Pace Line & Dots
+      let paceLineHtml = "";
+      if (showPace) {
+        const pacePoints = currentData.map((d, i) => {
+          const x = margin.left + (i + 0.5) * colWidth;
+          const clampedPace = Math.max(minPaceSec, Math.min(maxPaceSec, d.pace_sec_per_km));
+          const y = margin.top + ((clampedPace - minPaceSec) / (maxPaceSec - minPaceSec)) * plotHeight;
+          return { x, y, data: d, i };
+        });
+
+        // Path generator
+        let pathD = `M ${pacePoints[0].x} ${pacePoints[0].y}`;
+        for (let i = 1; i < pacePoints.length; i++) {
+          const prev = pacePoints[i - 1];
+          const curr = pacePoints[i];
+          const cp1x = prev.x + (curr.x - prev.x) / 2;
+          const cp1y = prev.y;
+          const cp2x = prev.x + (curr.x - prev.x) / 2;
+          const cp2y = curr.y;
+          pathD += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${curr.x} ${curr.y}`;
+        }
+
+        paceLineHtml += `
+          <path d="${pathD}" fill="none" stroke="#f97316" stroke-width="2.5" filter="url(#glow)" stroke-linecap="round" />
+        `;
+
+        // Dots
+        pacePoints.forEach(pt => {
+          paceLineHtml += `
+            <circle id="pdot-${pt.i}" class="pace-dot cursor-pointer" cx="${pt.x}" cy="${pt.y}" r="${N > 30 ? 2.5 : 4}" fill="#ffffff" stroke="#f97316" stroke-width="2" />
+          `;
+        });
+      }
+
+      // Draw HR Line
+      let hrLineHtml = "";
+      if (showHr) {
+        const hrPoints = currentData.filter(d => d.avg_hr).map((d, i) => {
+          const x = margin.left + (i + 0.5) * colWidth;
+          const clampedHr = Math.max(minHr, Math.min(maxHr, d.avg_hr));
+          const y = margin.top + plotHeight - ((clampedHr - minHr) / (maxHr - minHr)) * plotHeight;
+          return { x, y, data: d, i };
+        });
+
+        if (hrPoints.length > 1) {
+          let pathD = `M ${hrPoints[0].x} ${hrPoints[0].y}`;
+          for (let i = 1; i < hrPoints.length; i++) {
+            pathD += ` L ${hrPoints[i].x} ${hrPoints[i].y}`;
+          }
+          hrLineHtml += `
+            <path d="${pathD}" fill="none" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="4,4" stroke-opacity="0.8" />
+          `;
+        }
+      }
+
+      // Invisible Overlay Column Trigger for accurate Tooltip tracking
+      let overlayHtml = "";
+      currentData.forEach((d, i) => {
+        const x = margin.left + i * colWidth;
+        overlayHtml += `
+          <rect class="cursor-pointer" x="${x}" y="${margin.top}" width="${colWidth}" height="${plotHeight}" fill="transparent"
+            onmouseenter="showTooltip(event, ${i})"
+            onmousemove="moveTooltip(event)"
+            onmouseleave="hideTooltip(${i})"
+          />
+        `;
+      });
+
+      svg.innerHTML = defs + gridHtml + xAxisHtml + barsHtml + hrLineHtml + paceLineHtml + overlayHtml;
+    }
+
+    const tooltip = document.getElementById("chart-tooltip");
+    const container = document.getElementById("chart-container");
+
+    function showTooltip(evt, idx) {
+      const d = currentData[idx];
+      if (!d) return;
+
+      document.getElementById("tt-date").textContent = d.full_label;
+      document.getElementById("tt-dist").textContent = `${d.distance_km.toFixed(2)} km`;
+      document.getElementById("tt-pace").textContent = `${d.pace_str} /km`;
+      document.getElementById("tt-runs").textContent = `${d.run_count} 次`;
+      document.getElementById("tt-hr").textContent = d.avg_hr ? `${d.avg_hr} bpm` : "無數據";
+      document.getElementById("tt-cal").textContent = `${d.calories.toLocaleString()} kcal`;
+
+      const bar = document.getElementById("bar-" + idx);
+      if (bar) bar.setAttribute("fill", "url(#barHoverGradient)");
+      const dot = document.getElementById("pdot-" + idx);
+      if (dot) {
+        dot.setAttribute("r", "7");
+        dot.setAttribute("stroke-width", "3");
+      }
+
+      tooltip.style.opacity = "1";
+      moveTooltip(evt);
+    }
+
+    function moveTooltip(evt) {
+      const rect = container.getBoundingClientRect();
+      const mouseX = evt.clientX - rect.left;
+      const mouseY = evt.clientY - rect.top;
+
+      let left = mouseX + 15;
+      let top = mouseY - 60;
+
+      if (left + 200 > rect.width) {
+        left = mouseX - 215;
+      }
+      if (top < 10) top = 10;
+
+      tooltip.style.left = left + "px";
+      tooltip.style.top = top + "px";
+    }
+
+    function hideTooltip(idx) {
+      tooltip.style.opacity = "0";
+      const bar = document.getElementById("bar-" + idx);
+      if (bar) bar.setAttribute("fill", "url(#barGradient)");
+      const dot = document.getElementById("pdot-" + idx);
+      if (dot) {
+        const N = currentData.length;
+        dot.setAttribute("r", N > 30 ? "2.5" : "4");
+        dot.setAttribute("stroke-width", "2");
+      }
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById("table-body");
+      document.getElementById("table-count-label").textContent = `顯示 ${currentData.length} 週`;
+      
+      const reversed = [...currentData].reverse();
+      tbody.innerHTML = reversed.map((d, i) => `
+        <tr class="hover:bg-slate-500/5 transition-colors">
+          <td class="py-2.5 px-3 font-medium text-[var(--app-foreground)]">${d.full_label}</td>
+          <td class="py-2.5 px-3 text-right font-semibold text-blue-500">${d.distance_km.toFixed(2)}</td>
+          <td class="py-2.5 px-3 text-right font-semibold text-orange-500">${d.pace_str}</td>
+          <td class="py-2.5 px-3 text-right text-[var(--app-foreground)]">${d.run_count}</td>
+          <td class="py-2.5 px-3 text-right text-red-400">${d.avg_hr ? d.avg_hr + " bpm" : "-"}</td>
+          <td class="py-2.5 px-3 text-right text-[var(--app-muted-foreground)]">${d.calories.toLocaleString()}</td>
+        </tr>
+      `).join("");
+    }
+
+    // Init
+    setTimeRange(53);
+  </script>
+</body>
+</html>
