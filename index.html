@@ -3,147 +3,413 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 教練：專屬訓練與評價追蹤</title>
+    <title>AI 教練：專屬訓練與評價追蹤 (Pro 版)</title>
     <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-      .eval-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }
-      .eval-card { transition: all 0.2s; }
+      .hover-card { transition: all 0.2s; cursor: pointer; }
+      .hover-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); border-color: #3b82f6; }
+      .modal-bg { background-color: rgba(0,0,0,0.5); }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans p-4 md:p-8">
-    <div class="max-w-5xl mx-auto space-y-8">
+<body class="bg-slate-50 text-slate-900 font-sans p-4 md:p-8" id="app">
+    <div class="max-w-6xl mx-auto space-y-8">
         <header class="border-b border-slate-200 pb-6 mb-8 flex items-end justify-between">
             <div>
                 <h1 class="text-3xl font-bold text-blue-600 mb-2">🏃‍♂️ 跑步訓練戰情板：目標半馬 87 分</h1>
-                <p class="text-slate-500 text-sm">每日自動更新 | 賽事倒數：21 週 (2027/01/10)</p>
+                <p class="text-slate-500 text-sm">背景即時更新 | 深度 FIT 解析 | 近 12 週回溯</p>
             </div>
-            <div class="text-right text-sm text-slate-400">最後更新：2026/08/18 (深入資料版)</div>
+            <div class="flex gap-4">
+                <button @click="currentTab = 'list'" :class="currentTab === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'" class="px-4 py-2 rounded-lg font-bold shadow-sm border border-slate-200 transition">📝 訓練履歷</button>
+                <button @click="currentTab = 'stats'" :class="currentTab === 'stats' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'" class="px-4 py-2 rounded-lg font-bold shadow-sm border border-slate-200 transition">📈 週期跑量</button>
+            </div>
         </header>
 
-        <!-- 訓練預告 (Upcoming Trainings) -->
-        <section class="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden mb-8">
-            <div class="bg-emerald-500 px-6 py-4 border-b border-emerald-100">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2">🎯 接下來的五次訓練目標</h2>
-            </div>
-            <div class="p-6">
-                <!-- 保持原本的預告內容不變 -->
-                <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                    <div class="p-4 rounded-xl border border-orange-100 bg-orange-50">
-                        <div class="text-xs text-orange-500 font-bold mb-1">8/18 (週二)</div>
-                        <div class="text-lg font-bold text-orange-800 mb-2">動態恢復跑</div>
-                        <div class="text-xs text-slate-600 space-y-1">
-                            <strong>時長：</strong>30 分鐘<br>
-                            <strong>心率：</strong>< 135 bpm<br>
-                            <strong>目的：</strong>排乳酸。<br>
+        <!-- Tab 1: List -->
+        <div v-show="currentTab === 'list'">
+            <!-- 未來訓練預告 -->
+            <section class="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden mb-8">
+                <div class="bg-emerald-500 px-6 py-4 border-b border-emerald-100">
+                    <h2 class="text-lg font-bold text-white">🎯 接下來的五次訓練目標</h2>
+                </div>
+                <div class="p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                        <div class="p-4 rounded-xl border border-orange-100 bg-orange-50">
+                            <div class="text-xs text-orange-500 font-bold mb-1">8/18 (週二)</div>
+                            <div class="text-lg font-bold text-orange-800 mb-2">動態恢復跑</div>
+                            <div class="text-xs text-slate-600">時長: 30 分鐘<br>心率: &lt; 135 bpm<br>排乳酸</div>
                         </div>
-                    </div>
-                    <div class="p-4 rounded-xl border border-blue-100 bg-blue-50">
-                        <div class="text-xs text-blue-500 font-bold mb-1">8/19 (週三)</div>
-                        <div class="text-lg font-bold text-blue-800 mb-2">有氧底座</div>
-                        <div class="text-xs text-slate-600 space-y-1">
-                            <strong>時長：</strong>60 分鐘<br>
-                            <strong>配速：</strong>5:45 ~ 6:05<br>
-                            <strong>目的：</strong>純有氧體感。
+                        <div class="p-4 rounded-xl border border-blue-100 bg-blue-50">
+                            <div class="text-xs text-blue-500 font-bold mb-1">8/19 (週三)</div>
+                            <div class="text-lg font-bold text-blue-800 mb-2">有氧底座</div>
+                            <div class="text-xs text-slate-600">時長: 60 分鐘<br>配速: 5:45 ~ 6:05</div>
                         </div>
-                    </div>
-                    <div class="p-4 rounded-xl border border-slate-100 bg-slate-50">
-                        <div class="text-xs text-slate-500 font-bold mb-1">8/20 (週四)</div>
-                        <div class="text-lg font-bold text-slate-700 mb-2">完全休息</div>
-                        <div class="text-xs text-slate-600 space-y-1">
-                            <strong>目的：</strong>肌肉重置。
+                        <div class="p-4 rounded-xl border border-slate-100 bg-slate-50">
+                            <div class="text-xs text-slate-500 font-bold mb-1">8/20 (週四)</div>
+                            <div class="text-lg font-bold text-slate-700 mb-2">完全休息</div>
+                            <div class="text-xs text-slate-600">肌肉重置</div>
                         </div>
-                    </div>
-                    <div class="p-4 rounded-xl border border-blue-100 bg-blue-50">
-                        <div class="text-xs text-blue-500 font-bold mb-1">8/21 (週五)</div>
-                        <div class="text-lg font-bold text-blue-800 mb-2">輕鬆跑+輕快跑</div>
-                        <div class="text-xs text-slate-600 space-y-1">
-                            <strong>時長：</strong>50分 + 4x100m<br>
-                            <strong>目的：</strong>喚醒快縮肌。
+                        <div class="p-4 rounded-xl border border-blue-100 bg-blue-50">
+                            <div class="text-xs text-blue-500 font-bold mb-1">8/21 (週五)</div>
+                            <div class="text-lg font-bold text-blue-800 mb-2">輕鬆跑+輕快跑</div>
+                            <div class="text-xs text-slate-600">時長: 50分 + 4x100m</div>
                         </div>
-                    </div>
-                    <div class="p-4 rounded-xl border border-purple-100 bg-purple-50 shadow-sm">
-                        <div class="text-xs text-purple-600 font-bold mb-1">8/22 (週六)</div>
-                        <div class="text-lg font-bold text-purple-800 mb-2">長距離 LSD</div>
-                        <div class="text-xs text-slate-600 space-y-1">
-                            <strong>目標：</strong>15km 或 90分<br>
-                            <strong>配速：</strong>5:40 ~ 5:55<br>
+                        <div class="p-4 rounded-xl border border-purple-100 bg-purple-50 shadow-sm">
+                            <div class="text-xs text-purple-600 font-bold mb-1">8/22 (週六)</div>
+                            <div class="text-lg font-bold text-purple-800 mb-2">長距離 LSD</div>
+                            <div class="text-xs text-slate-600">目標: 15km 或 90分<br>配速: 5:40~5:55</div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- 歷史紀錄 (Past 10 Trainings) -->
-        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
-            <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">📊 最近 10 次訓練紀錄與教練評價</h2>
-            <div class="space-y-4">
+            <!-- 歷史紀錄 -->
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center justify-between">
+                    <span>📊 近 12 週訓練紀錄與教練評價</span>
+                    <span class="text-sm font-normal text-slate-500">點擊卡片查看圖表</span>
+                </h2>
                 
-                <!-- 1 -->
-                <div class="eval-card flex flex-col md:flex-row border-2 border-rose-400 rounded-xl p-4 bg-rose-50 gap-4 shadow-md relative overflow-hidden">
-                    <div class="absolute top-0 right-0 bg-rose-500 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">深度數據解析版</div>
-                    <div class="md:w-1/3 border-b md:border-b-0 md:border-r border-rose-200 pb-3 md:pb-0 md:pr-4">
-                        <div class="text-xs font-bold text-rose-600 mb-1">8/17 (週一) • Track Run (15x200m)</div>
-                        <div class="text-lg font-black text-rose-900">6.47 km</div>
-                        <div class="text-sm text-slate-700 flex justify-between mt-2"><span>⏱ 32:04</span> <span>總均速 4:57</span></div>
-                        <div class="text-sm text-slate-700 flex justify-between mt-1"><span>極速 3:12 /km</span> <span>🔥 191 bpm</span></div>
+                <div v-if="loading" class="text-center py-10 text-slate-400">正在同步 12 週資料...</div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" v-else>
+                    <div v-for="rec in records" :key="rec.labelId" @click="openModal(rec)" class="hover-card border border-slate-200 rounded-xl p-5 bg-white flex flex-col relative overflow-hidden">
+                        <div v-if="rec.fitParsed" class="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">深度圖表可用</div>
+                        <div class="text-xs font-bold text-blue-500 mb-2">{{ rec.name }}</div>
+                        <div class="text-lg font-black text-slate-800 mb-2">{{ extractSummary(rec) }}</div>
+                        <div class="text-xs text-slate-500 mb-4 whitespace-nowrap overflow-hidden text-ellipsis">{{ extractStats(rec) }}</div>
+                        
+                        <div class="mt-auto bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <h4 class="text-[11px] font-bold text-slate-700 mb-1">教練短評</h4>
+                            <p class="text-xs text-slate-600 line-clamp-3">{{ rec.coachEval || '數據已同步，分析建檔中。' }}</p>
+                        </div>
                     </div>
-                    <div class="md:w-2/3 pt-2 md:pt-0">
-                        <h4 class="text-md font-bold text-rose-800 mb-2">教練深度解析：精準且殘酷的 15x200m 無氧間歇！</h4>
-                        <p class="text-sm text-slate-800 leading-relaxed mb-2">教練親自拆解了你的 FIT 原始圈速檔案。原來這不是普通的團練，而是一份扎實的 200m 間歇課表（分為上下半場）！</p>
-                        <ul class="text-sm text-slate-700 list-disc pl-5 space-y-1">
-                            <li><strong>極佳的速度穩態：</strong> 15趟的衝刺幾乎都穩定在 40~42秒（3:25~3:35/km配速）。</li>
-                            <li><strong>最後一趟火力全開：</strong> 第31圈你衝出了 37.85秒（配速 3:12/km），最大心跳來到 191 bpm，完全壓榨出 VO2max 最大潛能！</li>
-                            <li><strong>動態恢復紀律：</strong> 組間你沒有停下來走，而是撐住用 6:20/km 緩跑 200m，這對乳酸清除與半馬續航幫助極大。</li>
-                        </ul>
-                        <p class="text-xs text-rose-600 font-bold mt-2">結論：這份無氧動力訓練的品質非常精良，請務必落實今日的超慢跑來排解這 191bpm 換來的深層疲勞！</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Tab 2: Stats -->
+        <div v-show="currentTab === 'stats'">
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
+                <h2 class="text-xl font-bold text-slate-800 mb-6">📈 跑量週期分析 (4 週區間)</h2>
+                
+                <div class="mb-8 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    <label class="block text-sm font-bold text-slate-700 mb-2">拖曳選擇 4 週區間起始點（最近 12 週）</label>
+                    <input type="range" min="0" :max="Math.max(0, weeklyStats.length - 4)" v-model="sliderStart" class="w-full accent-blue-600">
+                    <div class="flex justify-between text-xs text-slate-500 mt-2">
+                        <span>最舊的週</span>
+                        <span class="font-bold text-blue-600">目前選擇: 第 {{ sliderStart }} 週 到 第 {{ Number(sliderStart) + 3 }} 週</span>
+                        <span>最近的週</span>
                     </div>
                 </div>
 
-                <!-- 其餘保持原本 -->
-                <div class="eval-card flex flex-col md:flex-row border border-emerald-100 rounded-xl p-4 bg-emerald-50/50 gap-4">
-                    <div class="md:w-1/3 border-b md:border-b-0 md:border-r border-slate-200 pb-3 md:pb-0 md:pr-4">
-                        <div class="text-xs font-bold text-emerald-600 mb-1">8/16 (週日) • Indoor Run</div>
-                        <div class="text-lg font-black text-slate-700">5.20 km</div>
-                        <div class="text-sm text-slate-500 flex justify-between mt-2"><span>⏱ 28:30</span> <span>配速 5:29</span></div>
-                        <div class="text-sm text-slate-500 flex justify-between mt-1"><span>❤️ 126 bpm</span> <span>🔥 187 kcal</span></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-4 text-center">4週 總跑量 (km)</h3>
+                        <canvas id="volumeChart"></canvas>
+                        <div class="text-center mt-4 font-black text-2xl text-slate-800">平均 {{ avg4wVolume.toFixed(1) }} km/週</div>
                     </div>
-                    <div class="md:w-2/3 pt-2 md:pt-0">
-                        <h4 class="text-sm font-bold text-emerald-800 mb-1">教練評價：意外的加碼室內跑</h4>
-                        <p class="text-sm text-slate-600 leading-relaxed">整體心率維持在超級漂亮的 126 bpm (Zone 1~2)，這反而變成了一次絕佳的主動恢復，既沒有增加深層疲勞，又幫助了週六長跑的恢復。</p>
-                    </div>
-                </div>
-
-                <div class="eval-card flex flex-col md:flex-row border border-purple-100 rounded-xl p-4 bg-purple-50/50 gap-4">
-                    <div class="md:w-1/3 border-b md:border-b-0 md:border-r border-slate-200 pb-3 md:pb-0 md:pr-4">
-                        <div class="text-xs font-bold text-purple-600 mb-1">8/15 (週六) • Outdoor Run</div>
-                        <div class="text-lg font-black text-slate-700">12.44 km</div>
-                        <div class="text-sm text-slate-500 flex justify-between mt-2"><span>⏱ 1:11:21</span> <span>配速 5:44</span></div>
-                        <div class="text-sm text-slate-500 flex justify-between mt-1"><span>❤️ 161 bpm</span> <span>🔥 929 kcal</span></div>
-                    </div>
-                    <div class="md:w-2/3 pt-2 md:pt-0">
-                        <h4 class="text-sm font-bold text-purple-800 mb-1">教練評價：100 分完美達標的 LSD！</h4>
-                        <p class="text-sm text-slate-600 leading-relaxed">目標 75分鐘 / 5:40~6:00 配速。你竟然跑出了 1小時11分 / 5:44 配速！這證明你的有氧底子非常穩健，這次訓練把脂肪動員能力又往上推了一個層次。</p>
+                    <div>
+                        <h3 class="font-bold text-slate-700 mb-4 text-center">4週 平均配速 (分/公里)</h3>
+                        <canvas id="paceChart"></canvas>
+                        <div class="text-center mt-4 font-black text-2xl text-slate-800">平均 {{ formatPace(avg4wPace) }}</div>
                     </div>
                 </div>
+            </section>
+        </div>
 
-                <div class="eval-card flex flex-col md:flex-row border border-slate-100 rounded-xl p-4 bg-slate-50 gap-4">
-                    <div class="md:w-1/3 border-b md:border-b-0 md:border-r border-slate-200 pb-3 md:pb-0 md:pr-4">
-                        <div class="text-xs font-bold text-blue-500 mb-1">8/13 (週四) • Outdoor Run</div>
-                        <div class="text-lg font-black text-slate-700">7.12 km</div>
-                        <div class="text-sm text-slate-500 flex justify-between mt-2"><span>⏱ 42:50</span> <span>配速 6:01</span></div>
-                        <div class="text-sm text-slate-500 flex justify-between mt-1"><span>❤️ 157 bpm</span> </div>
+        <!-- 懸浮圖表 Modal -->
+        <div v-if="selectedRec" class="fixed inset-0 z-50 flex items-center justify-center modal-bg p-4" @click.self="selectedRec = null">
+            <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-start">
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-800">{{ selectedRec.name }}</h2>
+                        <p class="text-sm text-slate-500 mt-1">{{ extractSummary(selectedRec) }} | {{ extractStats(selectedRec) }}</p>
                     </div>
-                    <div class="md:w-2/3 pt-2 md:pt-0">
-                        <h4 class="text-sm font-bold text-slate-800 mb-1">教練評價：有氧打底，稍顯超率</h4>
-                        <p class="text-sm text-slate-600 leading-relaxed">配速壓在 6:01 非常好！心率 157 bpm，對輕鬆跑來說偏高了些。整體執行達標，有效累積有氧里程。</p>
+                    <button @click="selectedRec = null" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+                </div>
+                
+                <div class="p-6">
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                        <h3 class="font-bold text-blue-700 mb-2">教練完整解析</h3>
+                        <p class="text-slate-700 text-sm whitespace-pre-wrap">{{ selectedRec.coachEval || '常規訓練紀錄。' }}</p>
+                    </div>
+
+                    <div v-if="selectedRec.fitParsed && selectedRec.chartData && selectedRec.chartData.length > 0">
+                        <div class="flex gap-4 mb-4 justify-center">
+                            <button @click="chartMode = 'hr'" :class="chartMode === 'hr' ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-white border-slate-200'" class="px-4 py-1 rounded-full text-sm font-bold border">心率曲線 (HR)</button>
+                            <button @click="chartMode = 'pace'" :class="chartMode === 'pace' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white border-slate-200'" class="px-4 py-1 rounded-full text-sm font-bold border">配速曲線 (Pace)</button>
+                        </div>
+                        <div class="h-64 relative w-full">
+                            <canvas id="detailChart"></canvas>
+                        </div>
+                        
+                        <!-- 圈速表 -->
+                        <div v-if="selectedRec.laps && selectedRec.laps.length > 0" class="mt-8">
+                            <h3 class="font-bold text-slate-700 mb-4">圈速分段表 (Laps)</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left">
+                                    <thead class="text-xs text-slate-500 bg-slate-50">
+                                        <tr>
+                                            <th class="px-4 py-2">Lap</th>
+                                            <th class="px-4 py-2">距離 (km)</th>
+                                            <th class="px-4 py-2">時間</th>
+                                            <th class="px-4 py-2">配速</th>
+                                            <th class="px-4 py-2">心率 (Avg/Max)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(lap, i) in selectedRec.laps" class="border-b">
+                                            <td class="px-4 py-2 font-bold">{{ i + 1 }}</td>
+                                            <td class="px-4 py-2">{{ lap.dist.toFixed(2) }}</td>
+                                            <td class="px-4 py-2">{{ formatSeconds(lap.time) }}</td>
+                                            <td class="px-4 py-2">{{ formatPace(lap.time / lap.dist) }}</td>
+                                            <td class="px-4 py-2 text-rose-600 font-bold">{{ Math.round(lap.avg_hr) }} / {{ Math.round(lap.max_hr) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="text-center py-10 text-slate-400">
+                        此筆紀錄尚未取得原始 FIT 資料，或為非支援的運動類型。
                     </div>
                 </div>
             </div>
-        </section>
-        
-        <footer class="text-center text-slate-400 text-sm mt-8">
-            <p>與教練對話更新排程中... 明日早上 7:00 將自動分析新數據加入表單。</p>
-        </footer>
+        </div>
     </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    currentTab: 'list',
+                    records: [],
+                    loading: true,
+                    selectedRec: null,
+                    chartMode: 'hr', // 'hr' or 'pace'
+                    detailChartInstance: null,
+                    
+                    // Stats Data
+                    weeklyStats: [],
+                    sliderStart: 0,
+                    volChartInstance: null,
+                    paceChartInstance: null,
+                }
+            },
+            computed: {
+                current4Weeks() {
+                    const start = Number(this.sliderStart);
+                    return this.weeklyStats.slice(start, start + 4);
+                },
+                avg4wVolume() {
+                    if(!this.current4Weeks.length) return 0;
+                    return this.current4Weeks.reduce((a, b) => a + b.volume, 0) / this.current4Weeks.length;
+                },
+                avg4wPace() {
+                    if(!this.current4Weeks.length) return 0;
+                    let numValid = 0;
+                    let totalPace = 0;
+                    this.current4Weeks.forEach(w => { if(w.avgPace > 0) { totalPace += w.avgPace; numValid++; } });
+                    return numValid > 0 ? totalPace / numValid : 0;
+                }
+            },
+            watch: {
+                chartMode() {
+                    if (this.selectedRec) this.renderDetailChart();
+                },
+                sliderStart() {
+                    this.renderStatsCharts();
+                },
+                currentTab(v) {
+                    if(v === 'stats') {
+                        setTimeout(() => this.renderStatsCharts(), 100);
+                    }
+                }
+            },
+            mounted() {
+                this.fetchData();
+            },
+            methods: {
+                async fetchData() {
+                    try {
+                        // In real github pages deployment, we load data.json
+                        const rand = Math.random();
+                        const res = await fetch('data.json?v=' + rand);
+                        this.records = await res.json();
+                        this.processWeeklyStats();
+                    } catch (e) {
+                        console.error('Error fetching data:', e);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                extractSummary(rec) {
+                    if (rec.summary) return rec.summary.replace("Duration: ", "").replace("Distance: ", "");
+                    return "資料整理中";
+                },
+                extractStats(rec) {
+                    if (rec.stats) return rec.stats;
+                    return "";
+                },
+                formatSeconds(s) {
+                    if (!s) return "0:00";
+                    const m = Math.floor(s / 60);
+                    const rem = Math.floor(s % 60);
+                    return `${m}:${rem.toString().padStart(2,'0')}`;
+                },
+                formatPace(s_per_km) {
+                    if (!s_per_km) return "-:--";
+                    const m = Math.floor(s_per_km / 60);
+                    const rem = Math.floor(s_per_km % 60);
+                    return `${m}:${rem.toString().padStart(2,'0')}`;
+                },
+                parseSpeedToPace(speed_hz) {
+                    // FIT parser speed is often m/s or mm/s, if speed_hz is m/s
+                    // Let's assume it's km/h as the node script did speed * 3.6
+                    if (!speed_hz || speed_hz <= 0) return 0; // avoid infinity
+                    // if speed is km/h: pace in sec/km is 3600 / speed
+                    return 3600 / speed_hz;
+                },
+                openModal(rec) {
+                    this.selectedRec = rec;
+                    this.chartMode = 'hr';
+                    // Wait for DOM to render canvas
+                    setTimeout(() => this.renderDetailChart(), 100);
+                },
+                renderDetailChart() {
+                    const canvas = document.getElementById('detailChart');
+                    if (!canvas) return;
+                    if (this.detailChartInstance) this.detailChartInstance.destroy();
+                    
+                    const pData = this.selectedRec.chartData;
+                    if (!pData || pData.length === 0) return;
+                    
+                    const labels = pData.map((_, i) => `${i}%`);
+                    let chartData = [];
+                    let labelName = '';
+                    let color = '';
+                    
+                    if (this.chartMode === 'hr') {
+                        chartData = pData.map(d => d.hr);
+                        labelName = '心率 (bpm)';
+                        color = 'rgb(225, 29, 72)'; // rose-600
+                    } else {
+                        // Plot pace in seconds/km for y-axis
+                        chartData = pData.map(d => this.parseSpeedToPace(d.speed));
+                        labelName = '配速 (秒/km)';
+                        color = 'rgb(37, 99, 235)'; // blue-600
+                    }
+
+                    this.detailChartInstance = new Chart(canvas, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: labelName,
+                                data: chartData,
+                                borderColor: color,
+                                backgroundColor: color + '33',
+                                fill: true,
+                                tension: 0.2,
+                                pointRadius: 0
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    reverse: this.chartMode === 'pace', // reverse pace (faster = lower y)
+                                }
+                            }
+                        }
+                    });
+                },
+                processWeeklyStats() {
+                    // Group records by week (Monday-based relative)
+                    // We simply group by the timestamp
+                    const weeksMap = {};
+                    this.records.forEach(rec => {
+                        // get simple week identifier (12 weeks ago)
+                        // This is rudimentary, for real logic we'd use moment.js 
+                        const ts = rec.timestamp;
+                        const date = new Date(ts);
+                        const weekStr = `${date.getFullYear()}-W${Math.ceil((date.getDate() - date.getDay() + 1)/7)}`;
+                        if(!weeksMap[weekStr]) weeksMap[weekStr] = { volume: 0, totalPaceSecs: 0, runCount: 0 };
+                        
+                        // Parse "7.12 km"
+                        const summary = this.extractSummary(rec);
+                        let km = 0;
+                        const mKm = summary.match(/([0-9.]+)\s*km/);
+                        if (mKm) km = parseFloat(mKm[1]);
+                        
+                        let paceSecs = 0;
+                        const stats = this.extractStats(rec);
+                        const mPace = stats.match(/(\d+):(\d+)\s*\/km/);
+                        if (mPace) {
+                            paceSecs = parseInt(mPace[1]) * 60 + parseInt(mPace[2]);
+                        }
+                        
+                        if (km > 0) {
+                            weeksMap[weekStr].volume += km;
+                            if (paceSecs > 0) {
+                                weeksMap[weekStr].totalPaceSecs += paceSecs;
+                                weeksMap[weekStr].runCount++;
+                            }
+                        }
+                    });
+                    
+                    const sortedWeeks = Object.keys(weeksMap).sort();
+                    this.weeklyStats = sortedWeeks.map(k => ({
+                        week: k,
+                        volume: weeksMap[k].volume,
+                        avgPace: weeksMap[k].runCount > 0 ? weeksMap[k].totalPaceSecs / weeksMap[k].runCount : 0
+                    }));
+                    
+                    // Pad if there are fewer than 12 weeks
+                    if (this.weeklyStats.length < 12) {
+                        const len = this.weeklyStats.length;
+                        for (let i=0; i<12 - len; i++) {
+                            this.weeklyStats.unshift({ week: `N/A-${i}`, volume: 0, avgPace: 0 });
+                        }
+                    }
+                    this.sliderStart = Math.max(0, this.weeklyStats.length - 4);
+                },
+                renderStatsCharts() {
+                    const vCanvas = document.getElementById('volumeChart');
+                    const pCanvas = document.getElementById('paceChart');
+                    if (!vCanvas || !pCanvas) return;
+                    
+                    if (this.volChartInstance) this.volChartInstance.destroy();
+                    if (this.paceChartInstance) this.paceChartInstance.destroy();
+                    
+                    const labels = this.current4Weeks.map((w,i) => `Week ${i+1}`);
+                    const vols = this.current4Weeks.map(w => w.volume);
+                    const paces = this.current4Weeks.map(w => w.avgPace);
+                    
+                    this.volChartInstance = new Chart(vCanvas, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{ label: '週跑量 (km)', data: vols, backgroundColor: 'rgb(59, 130, 246)' }]
+                        }
+                    });
+                    
+                    this.paceChartInstance = new Chart(pCanvas, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{ label: '配速 (秒/km)', data: paces, borderColor: 'rgb(234, 179, 8)' }]
+                        },
+                        options: { scales: { y: { reverse: true } } } // Faster pace at top
+                    });
+                }
+            }
+        }).mount('#app');
+    </script>
 </body>
 </html>
