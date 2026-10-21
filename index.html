@@ -119,6 +119,7 @@ function renderOverview(){
     <p class="text-slate-700 leading-relaxed">${esc(a.verdict)}</p>
     <p class="text-xs text-slate-500 mt-2">VDOT 由近 8 週 ${a.n_samples} 筆「配速 × 心率儲備」推估${a.coros_vo2max? "，並與 COROS VO2max "+a.coros_vo2max+" 加權":""}；HRmax ${a.hrmax} bpm、靜止心率 ${a.hrrest} bpm。12/13 的 10K 測驗會提供最準確的校準。</p>
   </div>
+  ${sleepWarn(D.wellness||{})}
   <div class="grid lg:grid-cols-2 gap-5">
     <div class="space-y-5">
       ${dayCard(todayDay, cur, true)}
@@ -331,17 +332,31 @@ function renderWellness(){
     ${box("COROS VO2max", w.vo2max)}${box("COROS 閾值配速", w.threshold_pace? w.threshold_pace+"/km":null)}${box("恢復程度", w.recovery_pct!=null? w.recovery_pct+"%":null)}${box("負荷比 (短/長期)", w.load_ratio!=null? w.load_ratio+" ("+(w.load_short??"-")+"/"+(w.load_long??"-")+")":null)}
   </div>
   ${w.predictions&&Object.keys(w.predictions).length?`<div class="card p-4"><div class="font-bold mb-1">COROS 成績預測</div><div class="flex flex-wrap gap-4 text-sm">${Object.entries(w.predictions).map(([k,v])=>`<div><span class="text-slate-500">${({"5k":"5K","10k":"10K",half:"半馬",full:"全馬"})[k]}</span> <b class="font-mono">${v}</b></div>`).join("")}</div></div>`:""}
-  <div class="grid lg:grid-cols-3 gap-5">
-    <div class="card p-5"><div class="font-black mb-2">靜止心率 (14 天)</div><canvas id="ch-rhr" height="160"></canvas></div>
-    <div class="card p-5"><div class="font-black mb-2">睡眠時數 (7 天)</div><canvas id="ch-sleep" height="160"></canvas></div>
-    <div class="card p-5"><div class="font-black mb-2">睡眠 HRV (7 天)</div><canvas id="ch-hrv" height="160"></canvas></div>
+  ${sleepWarn(w)}
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="card p-5"><div class="font-black mb-2">COROS 訓練負荷（短期 / 長期 / 負荷比）</div><canvas id="ch-load" height="150"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">靜止心率 (14 天)</div><canvas id="ch-rhr" height="150"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">睡眠：主睡眠時數與分數 (7 天)</div><canvas id="ch-sleep" height="150"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">睡眠 HRV (7 天)</div><canvas id="ch-hrv" height="150"></canvas></div>
   </div>
   <details class="card p-4"><summary class="font-bold text-sm">COROS 原始回應（體能評估 / 負荷 / 恢復 / 睡眠）</summary><pre class="text-xs whitespace-pre-wrap mt-2 text-slate-600 max-h-96 overflow-auto scrollbar-thin">${esc(["fitness","load","recovery","sleep","rhr","hrv"].map(k=>"### "+k+"\n"+(typeof raw[k]==="string"?raw[k]:JSON.stringify(raw[k],null,1))).join("\n\n"))}</pre></details>`;
+}
+function sleepWarn(w){
+  const s = (w.sleep_series||[]).filter(x=>x.hours>=2.5);
+  if(!s.length) return "";
+  const avg = s.reduce((a,x)=>a+x.hours,0)/s.length;
+  const short = s.filter(x=>x.hours<6).length;
+  if(avg>=7) return `<div class="card p-4 border-l-4 border-emerald-500 text-sm">😴 近 ${s.length} 晚平均主睡眠 <b>${avg.toFixed(1)} 小時</b>，恢復條件良好。</div>`;
+  return `<div class="card p-4 border-l-4 border-rose-500 text-sm"><b>😴 睡眠是你目前最大的訓練限制：</b>近 ${s.length} 晚平均主睡眠只有 <b>${avg.toFixed(1)} 小時</b>（其中 ${short} 晚不到 6 小時）。研究顯示睡眠 <6 小時會讓肌肉修復與肝醣回補效率下降 20–30%、受傷風險上升約 1.7 倍。接下來 11 週，把「每晚 7 小時」當成和週跑量一樣重要的 KPI；品質課前一晚睡不足 6 小時時，課表會建議降級為 E 配速。</div>`;
 }
 function renderWellnessCharts(){
   const w = D.wellness||{};
   const line = (id, series, key, color, label) => mkChart(id,{type:"line",data:{labels:series.map(s=>s.date.slice(5)),datasets:[{label,data:series.map(s=>s[key]),borderColor:color,backgroundColor:color+"33",fill:true,tension:.3}]},options:{plugins:{legend:{display:false}}}});
-  line("ch-rhr", w.rhr_series||[], "rhr", "#ef4444", "RHR"); line("ch-sleep", w.sleep_series||[], "hours", "#6366f1", "小時"); line("ch-hrv", w.hrv_series||[], "hrv", "#22c55e", "HRV");
+  line("ch-rhr", w.rhr_series||[], "rhr", "#ef4444", "RHR"); line("ch-hrv", w.hrv_series||[], "hrv", "#22c55e", "HRV");
+  const sl = w.sleep_series||[];
+  mkChart("ch-sleep",{type:"bar",data:{labels:sl.map(s=>s.date.slice(5)),datasets:[{label:"主睡眠 (小時)",data:sl.map(s=>s.hours),backgroundColor:sl.map(s=>s.hours<6?"#f43f5e":s.hours<7?"#f59e0b":"#6366f1"),yAxisID:"y"},{label:"睡眠分數",data:sl.map(s=>s.score>0?s.score:null),type:"line",borderColor:"#0f172a",yAxisID:"y2",tension:.3,spanGaps:true}]},options:{plugins:{legend:{position:"bottom"}},scales:{y:{title:{display:true,text:"小時"},suggestedMax:9},y2:{position:"right",min:0,max:100,grid:{drawOnChartArea:false}}}}});
+  const ld = w.load_series||[];
+  mkChart("ch-load",{type:"line",data:{labels:ld.map(s=>s.date.slice(5)),datasets:[{label:"短期負荷",data:ld.map(s=>s.short),borderColor:"#f97316",tension:.3,yAxisID:"y"},{label:"長期負荷",data:ld.map(s=>s.long),borderColor:"#3b82f6",tension:.3,yAxisID:"y"},{label:"負荷比",data:ld.map(s=>s.ratio),borderColor:"#0f172a",borderDash:[5,4],tension:.3,yAxisID:"y2"}]},options:{plugins:{legend:{position:"bottom"},tooltip:{callbacks:{afterBody:i=>ld[i[0].dataIndex]?.comment}}},scales:{y:{title:{display:true,text:"負荷"}},y2:{position:"right",suggestedMin:0.5,suggestedMax:1.5,grid:{drawOnChartArea:false}}}}});
 }
 
 // ------------------------------------------------------------ method
