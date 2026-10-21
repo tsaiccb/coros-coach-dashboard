@@ -1,415 +1,363 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 教練：專屬訓練與評價追蹤 (Pro 版)</title>
-    <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-      .hover-card { transition: all 0.2s; cursor: pointer; }
-      .hover-card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1); border-color: #3b82f6; }
-      .modal-bg { background-color: rgba(0,0,0,0.5); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>半馬 87 分計畫 · AI 教練儀表板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  body{font-family:"Noto Sans TC",-apple-system,BlinkMacSystemFont,sans-serif;background:#f1f5f9}
+  .tab-btn.active{background:#0f172a;color:#fff}
+  .card{background:#fff;border-radius:16px;box-shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px -12px rgba(15,23,42,.12)}
+  .badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .stripe{border-left:5px solid}
+  .modal-bg{background:rgba(15,23,42,.6);backdrop-filter:blur(3px)}
+  #map{height:300px;border-radius:12px;z-index:0}
+  .scrollbar-thin::-webkit-scrollbar{height:6px;width:6px}.scrollbar-thin::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+  details>summary{cursor:pointer;list-style:none}details>summary::-webkit-details-marker{display:none}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:13px}
+  .kv dt{color:#64748b;white-space:nowrap}.kv dd{color:#0f172a}
+  .star{color:#f59e0b}
+  .pulse{animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .fade-in{animation:fade .35s ease-out}@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+</style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans p-4 md:p-8" id="app">
-    <div class="max-w-6xl mx-auto space-y-8">
-        <header class="border-b border-slate-200 pb-6 mb-8 flex items-end justify-between">
-            <div>
-                <h1 class="text-3xl font-bold text-blue-600 mb-2">🏃‍♂️ 跑步訓練戰情板：目標半馬 87 分</h1>
-                <p class="text-slate-500 text-sm">背景即時更新 | 深度 FIT 解析 | 近 12 週回溯</p>
-            </div>
-            <div class="flex gap-4">
-                <button @click="currentTab = 'list'" :class="currentTab === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'" class="px-4 py-2 rounded-lg font-bold shadow-sm border border-slate-200 transition">📝 訓練履歷</button>
-                <button @click="currentTab = 'stats'" :class="currentTab === 'stats' ? 'bg-blue-600 text-white' : 'bg-white text-slate-700'" class="px-4 py-2 rounded-lg font-bold shadow-sm border border-slate-200 transition">📈 週期跑量</button>
-            </div>
-        </header>
-
-        <!-- Tab 1: List -->
-        <div v-show="currentTab === 'list'">
-            <!-- 未來訓練預告 -->
-            <section class="bg-white rounded-2xl shadow-sm border border-emerald-100 overflow-hidden mb-8">
-                <div class="bg-emerald-500 px-6 py-4 border-b border-emerald-100">
-                    <h2 class="text-lg font-bold text-white">🎯 接下來的五次訓練目標</h2>
-                </div>
-                <div class="p-6">
-                    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
-                        <div class="p-4 rounded-xl border border-red-100 bg-red-50 shadow-sm">
-                            <div class="text-xs text-red-500 font-bold mb-1">連線警報 🚨</div>
-                            <div class="text-lg font-bold text-red-800 mb-2">斷聯狀態中</div>
-                            <div class="text-xs text-slate-600">教練無法觀測你的數據<br>請在對話視窗點擊連結更新</div>
-                        </div>
-                        <div class="p-4 rounded-xl border border-orange-100 bg-orange-50">
-                            <div class="text-xs text-orange-500 font-bold mb-1">10/21 (週三)</div>
-                            <div class="text-lg font-bold text-orange-800 mb-2">有氧底座</div>
-                            <div class="text-xs text-slate-600">時長: 60 分鐘<br>配速: 5:45 ~ 6:00</div>
-                        </div>
-                        <div class="p-4 rounded-xl border border-slate-100 bg-slate-50">
-                            <div class="text-xs text-slate-500 font-bold mb-1">10/22 (週四)</div>
-                            <div class="text-lg font-bold text-slate-700 mb-2">完全休息</div>
-                            <div class="text-xs text-slate-600">伸展拉筋</div>
-                        </div>
-                        <div class="p-4 rounded-xl border border-rose-100 bg-rose-50">
-                            <div class="text-xs text-rose-500 font-bold mb-1">10/23 (週五)</div>
-                            <div class="text-lg font-bold text-rose-800 mb-2">週末前節奏跑</div>
-                            <div class="text-xs text-slate-600">時長: 35 分鐘<br>配速: 5:00</div>
-                        </div>
-                        <div class="p-4 rounded-xl border border-rose-100 bg-rose-50">
-                            <div class="text-xs text-rose-500 font-bold mb-1">10/24 (週六)</div>
-                            <div class="text-lg font-bold text-rose-800 mb-2">🔥 週末長距離 (LSD)</div>
-                            <div class="text-xs text-slate-600">目標: 20 km<br>配速: 5:45<br>耐力穩定輸出</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 歷史紀錄 -->
-            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <h2 class="text-xl font-bold text-slate-800 mb-6 flex items-center justify-between">
-                    <span>📊 近 12 週訓練紀錄與教練評價</span>
-                    <span class="text-sm font-normal text-slate-500">點擊卡片查看圖表</span>
-                </h2>
-                
-                <div v-if="loading" class="text-center py-10 text-slate-400">正在同步 12 週資料...</div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" v-else>
-                    <div v-for="rec in records" :key="rec.labelId" @click="openModal(rec)" class="hover-card border border-slate-200 rounded-xl p-5 bg-white flex flex-col relative overflow-hidden">
-                        <div v-if="rec.fitParsed" class="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">深度圖表可用</div>
-                        <div class="text-xs font-bold text-blue-500 mb-2">{{ rec.name }}</div>
-                        <div class="text-lg font-black text-slate-800 mb-2">{{ extractSummary(rec) }}</div>
-                        <div class="text-xs text-slate-500 mb-4 whitespace-nowrap overflow-hidden text-ellipsis">{{ extractStats(rec) }}</div>
-                        
-                        <div class="mt-auto bg-slate-50 p-3 rounded-lg border border-slate-100">
-                            <h4 class="text-[11px] font-bold text-slate-700 mb-1">教練短評</h4>
-                            <p class="text-xs text-slate-600 line-clamp-3">{{ rec.coachEval || '數據已同步，分析建檔中。' }}</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <!-- Tab 2: Stats -->
-        <div v-show="currentTab === 'stats'">
-            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
-                <h2 class="text-xl font-bold text-slate-800 mb-6">📈 跑量週期分析 (4 週區間)</h2>
-                
-                <div class="mb-8 p-4 bg-slate-50 rounded-xl border border-slate-200">
-                    <label class="block text-sm font-bold text-slate-700 mb-2">拖曳選擇 4 週區間起始點（最近 12 週）</label>
-                    <input type="range" min="0" :max="Math.max(0, weeklyStats.length - 4)" v-model="sliderStart" class="w-full accent-blue-600">
-                    <div class="flex justify-between text-xs text-slate-500 mt-2">
-                        <span>最舊的週</span>
-                        <span class="font-bold text-blue-600">目前選擇: 第 {{ sliderStart }} 週 到 第 {{ Number(sliderStart) + 3 }} 週</span>
-                        <span>最近的週</span>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">4週 總跑量 (km)</h3>
-                        <canvas id="volumeChart"></canvas>
-                        <div class="text-center mt-4 font-black text-2xl text-slate-800">平均 {{ avg4wVolume.toFixed(1) }} km/週</div>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-slate-700 mb-4 text-center">4週 平均配速 (分/公里)</h3>
-                        <canvas id="paceChart"></canvas>
-                        <div class="text-center mt-4 font-black text-2xl text-slate-800">平均 {{ formatPace(avg4wPace) }}</div>
-                    </div>
-                </div>
-            </section>
-        </div>
-
-        <!-- 懸浮圖表 Modal -->
-        <div v-if="selectedRec" class="fixed inset-0 z-50 flex items-center justify-center modal-bg p-4" @click.self="selectedRec = null">
-            <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl">
-                <div class="p-6 border-b border-slate-100 flex justify-between items-start">
-                    <div>
-                        <h2 class="text-2xl font-bold text-slate-800">{{ selectedRec.name }}</h2>
-                        <p class="text-sm text-slate-500 mt-1">{{ extractSummary(selectedRec) }} | {{ extractStats(selectedRec) }}</p>
-                    </div>
-                    <button @click="selectedRec = null" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
-                </div>
-                
-                <div class="p-6">
-                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
-                        <h3 class="font-bold text-blue-700 mb-2">教練完整解析</h3>
-                        <p class="text-slate-700 text-sm whitespace-pre-wrap">{{ selectedRec.coachEval || '常規訓練紀錄。' }}</p>
-                    </div>
-
-                    <div v-if="selectedRec.fitParsed && selectedRec.chartData && selectedRec.chartData.length > 0">
-                        <div class="flex gap-4 mb-4 justify-center">
-                            <button @click="chartMode = 'hr'" :class="chartMode === 'hr' ? 'bg-rose-100 text-rose-700 border-rose-300' : 'bg-white border-slate-200'" class="px-4 py-1 rounded-full text-sm font-bold border">心率曲線 (HR)</button>
-                            <button @click="chartMode = 'pace'" :class="chartMode === 'pace' ? 'bg-blue-100 text-blue-700 border-blue-300' : 'bg-white border-slate-200'" class="px-4 py-1 rounded-full text-sm font-bold border">配速曲線 (Pace)</button>
-                        </div>
-                        <div class="h-64 relative w-full">
-                            <canvas id="detailChart"></canvas>
-                        </div>
-                        
-                        <!-- 圈速表 -->
-                        <div v-if="selectedRec.laps && selectedRec.laps.length > 0" class="mt-8">
-                            <h3 class="font-bold text-slate-700 mb-4">圈速分段表 (Laps)</h3>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-sm text-left">
-                                    <thead class="text-xs text-slate-500 bg-slate-50">
-                                        <tr>
-                                            <th class="px-4 py-2">Lap</th>
-                                            <th class="px-4 py-2">距離 (km)</th>
-                                            <th class="px-4 py-2">時間</th>
-                                            <th class="px-4 py-2">配速</th>
-                                            <th class="px-4 py-2">心率 (Avg/Max)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr v-for="(lap, i) in selectedRec.laps" class="border-b">
-                                            <td class="px-4 py-2 font-bold">{{ i + 1 }}</td>
-                                            <td class="px-4 py-2">{{ lap.dist.toFixed(2) }}</td>
-                                            <td class="px-4 py-2">{{ formatSeconds(lap.time) }}</td>
-                                            <td class="px-4 py-2">{{ formatPace(lap.time / lap.dist) }}</td>
-                                            <td class="px-4 py-2 text-rose-600 font-bold">{{ Math.round(lap.avg_hr) }} / {{ Math.round(lap.max_hr) }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                    <div v-else class="text-center py-10 text-slate-400">
-                        此筆紀錄尚未取得原始 FIT 資料，或為非支援的運動類型。
-                    </div>
-                </div>
-            </div>
-        </div>
+<body class="text-slate-800">
+<header class="bg-slate-900 text-white">
+  <div class="max-w-7xl mx-auto px-4 py-5">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <div class="text-xs tracking-widest text-orange-300 font-bold">HALF MARATHON · 2027/01/10</div>
+        <h1 class="text-2xl md:text-3xl font-black">半馬 87 分計畫 <span class="text-slate-400 font-medium text-lg">AI 科學化教練儀表板</span></h1>
+      </div>
+      <div class="text-right">
+        <div id="countdown" class="text-3xl font-black text-orange-400">—</div>
+        <div class="text-xs text-slate-400">最後同步 <span id="updated">—</span> · 每 2 小時自動同步 COROS</div>
+      </div>
     </div>
+    <nav class="mt-4 flex gap-2 overflow-x-auto scrollbar-thin pb-1" id="tabs">
+      <button data-tab="overview" class="tab-btn active whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">總覽</button>
+      <button data-tab="plan" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練課表 (8 週)</button>
+      <button data-tab="history" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練紀錄 (20)</button>
+      <button data-tab="weekly" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">週統計 (8 週)</button>
+      <button data-tab="wellness" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">身體狀態</button>
+      <button data-tab="method" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練方法論</button>
+    </nav>
+  </div>
+</header>
 
-    <script>
-        const { createApp } = Vue;
+<div id="notify" class="hidden max-w-7xl mx-auto px-4 mt-4"></div>
 
-        createApp({
-            data() {
-                return {
-                    currentTab: 'list',
-                    records: [],
-                    loading: true,
-                    selectedRec: null,
-                    chartMode: 'hr', // 'hr' or 'pace'
-                    detailChartInstance: null,
-                    
-                    // Stats Data
-                    weeklyStats: [],
-                    sliderStart: 0,
-                    volChartInstance: null,
-                    paceChartInstance: null,
-                }
-            },
-            computed: {
-                current4Weeks() {
-                    const start = Number(this.sliderStart);
-                    return this.weeklyStats.slice(start, start + 4);
-                },
-                avg4wVolume() {
-                    if(!this.current4Weeks.length) return 0;
-                    return this.current4Weeks.reduce((a, b) => a + b.volume, 0) / this.current4Weeks.length;
-                },
-                avg4wPace() {
-                    if(!this.current4Weeks.length) return 0;
-                    let numValid = 0;
-                    let totalPace = 0;
-                    this.current4Weeks.forEach(w => { if(w.avgPace > 0) { totalPace += w.avgPace; numValid++; } });
-                    return numValid > 0 ? totalPace / numValid : 0;
-                }
-            },
-            watch: {
-                chartMode() {
-                    if (this.selectedRec) this.renderDetailChart();
-                },
-                sliderStart() {
-                    this.renderStatsCharts();
-                },
-                currentTab(v) {
-                    if(v === 'stats') {
-                        setTimeout(() => this.renderStatsCharts(), 100);
-                    }
-                }
-            },
-            mounted() {
-                this.fetchData();
-            },
-            methods: {
-                async fetchData() {
-                    try {
-                        // In real github pages deployment, we load data.json
-                        const rand = Math.random();
-                        const res = await fetch('data.json?v=' + rand);
-                        this.records = await res.json();
-                        this.processWeeklyStats();
-                    } catch (e) {
-                        console.error('Error fetching data:', e);
-                    } finally {
-                        this.loading = false;
-                    }
-                },
-                extractSummary(rec) {
-                    if (rec.summary) return rec.summary.replace("Duration: ", "").replace("Distance: ", "");
-                    return "資料整理中";
-                },
-                extractStats(rec) {
-                    if (rec.stats) return rec.stats;
-                    return "";
-                },
-                formatSeconds(s) {
-                    if (!s) return "0:00";
-                    const m = Math.floor(s / 60);
-                    const rem = Math.floor(s % 60);
-                    return `${m}:${rem.toString().padStart(2,'0')}`;
-                },
-                formatPace(s_per_km) {
-                    if (!s_per_km) return "-:--";
-                    const m = Math.floor(s_per_km / 60);
-                    const rem = Math.floor(s_per_km % 60);
-                    return `${m}:${rem.toString().padStart(2,'0')}`;
-                },
-                parseSpeedToPace(speed_hz) {
-                    // FIT parser speed is often m/s or mm/s, if speed_hz is m/s
-                    // Let's assume it's km/h as the node script did speed * 3.6
-                    if (!speed_hz || speed_hz <= 0) return 0; // avoid infinity
-                    // if speed is km/h: pace in sec/km is 3600 / speed
-                    return 3600 / speed_hz;
-                },
-                openModal(rec) {
-                    this.selectedRec = rec;
-                    this.chartMode = 'hr';
-                    // Wait for DOM to render canvas
-                    setTimeout(() => this.renderDetailChart(), 100);
-                },
-                renderDetailChart() {
-                    const canvas = document.getElementById('detailChart');
-                    if (!canvas) return;
-                    if (this.detailChartInstance) this.detailChartInstance.destroy();
-                    
-                    const pData = this.selectedRec.chartData;
-                    if (!pData || pData.length === 0) return;
-                    
-                    const labels = pData.map((_, i) => `${i}%`);
-                    let chartData = [];
-                    let labelName = '';
-                    let color = '';
-                    
-                    if (this.chartMode === 'hr') {
-                        chartData = pData.map(d => d.hr);
-                        labelName = '心率 (bpm)';
-                        color = 'rgb(225, 29, 72)'; // rose-600
-                    } else {
-                        // Plot pace in seconds/km for y-axis
-                        chartData = pData.map(d => this.parseSpeedToPace(d.speed));
-                        labelName = '配速 (秒/km)';
-                        color = 'rgb(37, 99, 235)'; // blue-600
-                    }
+<main class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+  <section id="tab-overview" class="tab space-y-6"></section>
+  <section id="tab-plan" class="tab hidden space-y-6"></section>
+  <section id="tab-history" class="tab hidden space-y-6"></section>
+  <section id="tab-weekly" class="tab hidden space-y-6"></section>
+  <section id="tab-wellness" class="tab hidden space-y-6"></section>
+  <section id="tab-method" class="tab hidden space-y-6"></section>
+</main>
 
-                    this.detailChartInstance = new Chart(canvas, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{
-                                label: labelName,
-                                data: chartData,
-                                borderColor: color,
-                                backgroundColor: color + '33',
-                                fill: true,
-                                tension: 0.2,
-                                pointRadius: 0
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            scales: {
-                                y: {
-                                    reverse: this.chartMode === 'pace', // reverse pace (faster = lower y)
-                                }
-                            }
-                        }
-                    });
-                },
-                processWeeklyStats() {
-                    // Group records by week (Monday-based relative)
-                    // We simply group by the timestamp
-                    const weeksMap = {};
-                    this.records.forEach(rec => {
-                        // get simple week identifier (12 weeks ago)
-                        // This is rudimentary, for real logic we'd use moment.js 
-                        const ts = rec.timestamp;
-                        const date = new Date(ts);
-                        const weekStr = `${date.getFullYear()}-W${Math.ceil((date.getDate() - date.getDay() + 1)/7)}`;
-                        if(!weeksMap[weekStr]) weeksMap[weekStr] = { volume: 0, totalPaceSecs: 0, runCount: 0 };
-                        
-                        // Parse "7.12 km"
-                        const summary = this.extractSummary(rec);
-                        let km = 0;
-                        const mKm = summary.match(/([0-9.]+)\s*km/);
-                        if (mKm) km = parseFloat(mKm[1]);
-                        
-                        let paceSecs = 0;
-                        const stats = this.extractStats(rec);
-                        const mPace = stats.match(/(\d+):(\d+)\s*\/km/);
-                        if (mPace) {
-                            paceSecs = parseInt(mPace[1]) * 60 + parseInt(mPace[2]);
-                        }
-                        
-                        if (km > 0) {
-                            weeksMap[weekStr].volume += km;
-                            if (paceSecs > 0) {
-                                weeksMap[weekStr].totalPaceSecs += paceSecs;
-                                weeksMap[weekStr].runCount++;
-                            }
-                        }
-                    });
-                    
-                    const sortedWeeks = Object.keys(weeksMap).sort();
-                    this.weeklyStats = sortedWeeks.map(k => ({
-                        week: k,
-                        volume: weeksMap[k].volume,
-                        avgPace: weeksMap[k].runCount > 0 ? weeksMap[k].totalPaceSecs / weeksMap[k].runCount : 0
-                    }));
-                    
-                    // Pad if there are fewer than 12 weeks
-                    if (this.weeklyStats.length < 12) {
-                        const len = this.weeklyStats.length;
-                        for (let i=0; i<12 - len; i++) {
-                            this.weeklyStats.unshift({ week: `N/A-${i}`, volume: 0, avgPace: 0 });
-                        }
-                    }
-                    this.sliderStart = Math.max(0, this.weeklyStats.length - 4);
-                },
-                renderStatsCharts() {
-                    const vCanvas = document.getElementById('volumeChart');
-                    const pCanvas = document.getElementById('paceChart');
-                    if (!vCanvas || !pCanvas) return;
-                    
-                    if (this.volChartInstance) this.volChartInstance.destroy();
-                    if (this.paceChartInstance) this.paceChartInstance.destroy();
-                    
-                    const labels = this.current4Weeks.map((w,i) => `Week ${i+1}`);
-                    const vols = this.current4Weeks.map(w => w.volume);
-                    const paces = this.current4Weeks.map(w => w.avgPace);
-                    
-                    this.volChartInstance = new Chart(vCanvas, {
-                        type: 'bar',
-                        data: {
-                            labels: labels,
-                            datasets: [{ label: '週跑量 (km)', data: vols, backgroundColor: 'rgb(59, 130, 246)' }]
-                        }
-                    });
-                    
-                    this.paceChartInstance = new Chart(pCanvas, {
-                        type: 'line',
-                        data: {
-                            labels: labels,
-                            datasets: [{ label: '配速 (秒/km)', data: paces, borderColor: 'rgb(234, 179, 8)' }]
-                        },
-                        options: { scales: { y: { reverse: true } } } // Faster pace at top
-                    });
-                }
-            }
-        }).mount('#app');
-    </script>
+<div id="modal" class="hidden fixed inset-0 z-50 modal-bg overflow-y-auto" onclick="if(event.target===this)closeModal()">
+  <div class="max-w-5xl mx-auto my-6 bg-white rounded-2xl shadow-2xl p-5 md:p-7 fade-in" id="modal-body"></div>
+</div>
+
+<footer class="text-center text-xs text-slate-400 py-8">資料來源：COROS (MCP) · 配速系統：Daniels VDOT · 訓練哲學：Hansons / 挪威式閾值 / 80-20 · 由 AI 教練自動生成與維護</footer>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+let D = null; const charts = {}; let map = null;
+const TYPE_LABEL = {recovery:"恢復跑", easy:"輕鬆跑", long:"長距離", progression:"漸速長跑", tempo:"閾值/節奏", interval:"間歇", race:"比賽/測驗", strides:"短程", rest:"休息", other:"其他"};
+const TYPE_COLOR = {recovery:"#94a3b8", easy:"#22c55e", long:"#3b82f6", progression:"#6366f1", tempo:"#f97316", interval:"#ef4444", race:"#a855f7", strides:"#cbd5e1", rest:"#e2e8f0", other:"#cbd5e1"};
+const STATUS = {hit:["✅ 已完成","bg-emerald-100 text-emerald-700"], partial:["🟡 部分達成","bg-amber-100 text-amber-700"], diff:["🔁 內容不同","bg-sky-100 text-sky-700"], missed:["❌ 未執行","bg-rose-100 text-rose-700"], rest_ok:["✔ 休息","bg-slate-100 text-slate-500"], today:["📍 今天","bg-orange-500 text-white pulse"], today_done:["📍 今天 ✅","bg-emerald-500 text-white"], upcoming:["",""]};
+const fmtPace = s => (s==null||!isFinite(s)||s<=0) ? "-" : `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`;
+const fmtTime = s => { if(s==null) return "-"; s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return h? `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}` : `${m}:${String(x).padStart(2,"0")}`; };
+const stars = n => '<span class="star">'+"★".repeat(n)+'</span><span class="text-slate-300">'+"★".repeat(5-n)+'</span>';
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct = (a,b) => b? Math.round(a/b*100):0;
+
+function mkChart(id, cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el) return; charts[id]=new Chart(el, cfg); }
+
+// ------------------------------------------------------------ tabs
+$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); });
+
+// ------------------------------------------------------------ load
+fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(d=>{ D=d; renderAll(); }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
+
+function renderAll(){
+  $("#updated").textContent = D.generated_at;
+  $("#countdown").textContent = `距離比賽 ${D.race.days_left} 天`;
+  if(D.notify && D.notify.length){ $("#notify").classList.remove("hidden"); $("#notify").innerHTML = `<div class="card p-4 border-l-4 border-emerald-500 flex items-start gap-3"><div class="text-2xl">🆕</div><div><div class="font-bold">已更新訓練 (${D.generated_at})</div><div class="text-sm text-slate-600">新增 ${D.notify.length} 筆：${D.notify.map(n=>esc(n)).join("、")}。課表已依最新數據重新計算。</div></div></div>`; }
+  renderOverview(); renderPlan(); renderHistory(); renderWeekly(); renderWellness(); renderMethod();
+  renderOverviewCharts();
+}
+
+// ------------------------------------------------------------ overview
+function renderOverview(){
+  const a = D.athlete, r = D.race, p = D.plan;
+  const cur = p.weeks[0];
+  const todayStr = new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Taipei"});
+  const todayDay = cur.days.find(x=>x.date===todayStr) || cur.days[0];
+  const nextDay = cur.days.find(x=>x.date>todayStr && x.session.type!=="rest") || (p.weeks[1]||cur).days.find(x=>x.session.type!=="rest");
+  const kpi = (label, val, sub, color="text-slate-900") => `<div class="card p-4"><div class="text-xs text-slate-500 font-bold">${label}</div><div class="text-2xl font-black ${color} mt-1">${val}</div><div class="text-xs text-slate-500 mt-1">${sub||""}</div></div>`;
+  $("#tab-overview").innerHTML = `
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    ${kpi("目標 A", r.goal_A, `配速 ${r.goal_A_pace}/km · 需 VDOT ${r.goal_A_vdot}`, "text-orange-600")}
+    ${kpi("目標 B (底線)", r.goal_B, `配速 ${r.goal_B_pace}/km · 需 VDOT ${r.goal_B_vdot}`, "text-amber-600")}
+    ${kpi("目前 VDOT", a.vdot, `推估半馬 ${a.pred_hm}${a.coros_hm_pred? " · COROS 預測 "+a.coros_hm_pred:""}`, "text-sky-700")}
+    ${kpi("與目標差距", `${a.gap_B>0?"+":""}${a.gap_B} / ${a.gap_A>0?"+":""}${a.gap_A}`, "VDOT：破 90 / 破 87", a.gap_B<=0.3?"text-emerald-600":"text-rose-600")}
+    ${kpi("本週跑量", `${cur.actual_km} <span class="text-base text-slate-400">/ ${cur.target_km} km</span>`, `${cur.phase} · 計畫 ${cur.planned_km} km`)}
+    ${kpi("急慢性負荷比 ACWR", p.acwr??"-", p.acwr==null?"資料不足": p.acwr>1.4?"⚠️ 偏高，注意降載": p.acwr<0.8?"偏低（恢復/減量中）":"✅ 安全區 0.8–1.3", p.acwr>1.4?"text-rose-600":"text-emerald-600")}
+  </div>
+  <div class="card p-5 border-l-4 border-sky-500">
+    <div class="font-black text-lg mb-1">🎯 教練總評</div>
+    <p class="text-slate-700 leading-relaxed">${esc(a.verdict)}</p>
+    <p class="text-xs text-slate-500 mt-2">VDOT 由近 8 週 ${a.n_samples} 筆「配速 × 心率儲備」推估${a.coros_vo2max? "，並與 COROS VO2max "+a.coros_vo2max+" 加權":""}；HRmax ${a.hrmax} bpm、靜止心率 ${a.hrrest} bpm。12/13 的 10K 測驗會提供最準確的校準。</p>
+  </div>
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="space-y-5">
+      ${dayCard(todayDay, cur, true)}
+      ${nextDay && nextDay!==todayDay ? `<div class="text-xs font-bold text-slate-500 -mb-3 ml-1">下一堂課</div>${dayCard(nextDay, cur, false)}`:""}
+    </div>
+    <div class="space-y-5">
+      <div class="card p-5"><div class="font-black mb-2">近 8 週跑量與平均配速</div><canvas id="ch-vol" height="170"></canvas></div>
+      <div class="card p-5"><div class="font-black mb-2">VDOT 推估趨勢（各次訓練樣本）</div><canvas id="ch-vdot" height="130"></canvas></div>
+    </div>
+  </div>
+  <div class="grid md:grid-cols-2 gap-5">
+    <div class="card p-5">
+      <div class="font-black mb-3">本週訓練配速表 (VDOT ${cur.vdot_k})</div>
+      <table class="w-full text-sm"><tbody>
+        ${[["E 輕鬆", cur.paces.E_slow+" – "+cur.paces.E_fast, "有氧底座、恢復；Z1–Z2"],["M 馬拉松", cur.paces.M, "穩態有氧上緣；長跑末段"],["HMP 半馬目標", cur.hmp, "本週專項配速 (逐週逼近 "+r.goal_A_pace+")"],["T 閾值", cur.paces.T, "乳酸閾值；挪威式 sub-T 上限"],["10K", cur.paces.K10_pace, "10K 配速 / 1000 m 間歇"],["I 間歇", cur.paces.I, "VO2max；跑班 400–1200 m"],["R 反覆", cur.paces.R, "速度/經濟性；200–400 m"]].map(x=>`<tr class="border-b border-slate-100"><td class="py-1.5 font-bold">${x[0]}</td><td class="py-1.5 font-mono text-right text-sky-700 font-bold">${x[1]}</td><td class="py-1.5 text-xs text-slate-500 pl-3">${x[2]}</td></tr>`).join("")}
+      </tbody></table>
+    </div>
+    <div class="card p-5">
+      <div class="font-black mb-3">心率區間 (HRmax ${a.hrmax})</div>
+      <div class="space-y-2">${a.zones.map((z,i)=>`<div class="flex items-center gap-3 text-sm"><div class="w-16 font-bold">${z.name}</div><div class="flex-1 h-3 rounded-full" style="background:${["#94a3b8","#22c55e","#f59e0b","#f97316","#ef4444"][i]};opacity:.85"></div><div class="w-28 text-right font-mono">${z.lo}${i===4?"+":" – "+z.hi} bpm</div></div>`).join("")}</div>
+      <div class="text-xs text-slate-500 mt-3">閾值課請以 Z3 上緣～Z4（${Math.round(a.hrmax*0.86)}–${Math.round(a.hrmax*0.91)}）為上限；輕鬆日 < ${Math.round(a.hrmax*0.80)}。</div>
+    </div>
+  </div>
+  <div class="card p-5"><div class="font-black mb-2">12 週週期總覽</div><canvas id="ch-period" height="110"></canvas></div>`;
+}
+
+function renderOverviewCharts(){
+  if(!D) return;
+  const W = D.weekly;
+  mkChart("ch-vol", {type:"bar", data:{labels:W.map(w=>w.label), datasets:[
+    {label:"戶外 km", data:W.map(w=>w.outdoor_km), backgroundColor:"#3b82f6", stack:"a", yAxisID:"y"},
+    {label:"室內 km", data:W.map(w=>w.indoor_km), backgroundColor:"#93c5fd", stack:"a", yAxisID:"y"},
+    {label:"平均配速", data:W.map(w=>w.pace_s? w.pace_s/60:null), type:"line", borderColor:"#f97316", backgroundColor:"#f97316", yAxisID:"y2", tension:.3, spanGaps:true}]},
+    options:{responsive:true, interaction:{mode:"index"}, plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{label:c=> c.dataset.yAxisID==="y2"? "配速 "+fmtPace(c.raw*60)+"/km" : c.dataset.label+" "+c.raw+" km"}}},
+      scales:{y:{title:{display:true,text:"km"}, stacked:true}, y2:{position:"right", reverse:true, grid:{drawOnChartArea:false}, ticks:{callback:v=>fmtPace(v*60)}, title:{display:true,text:"配速 /km"}}}}});
+  const S = D.athlete.vdot_samples||[];
+  mkChart("ch-vdot", {type:"scatter", data:{datasets:[{label:"單次推估 VDOT", data:S.map(s=>({x:s.date, y:s.vdot})), backgroundColor:"#0ea5e9"},
+      {label:"採用值", data:S.length? [{x:S[0].date,y:D.athlete.vdot},{x:S[S.length-1].date,y:D.athlete.vdot}]:[], type:"line", borderColor:"#0f172a", borderDash:[6,4], pointRadius:0},
+      {label:"破 90 需求", data:S.length? [{x:S[0].date,y:D.race.goal_B_vdot},{x:S[S.length-1].date,y:D.race.goal_B_vdot}]:[], type:"line", borderColor:"#f59e0b", pointRadius:0},
+      {label:"破 87 需求", data:S.length? [{x:S[0].date,y:D.race.goal_A_vdot},{x:S[S.length-1].date,y:D.race.goal_A_vdot}]:[], type:"line", borderColor:"#ef4444", pointRadius:0}]},
+    options:{plugins:{legend:{position:"bottom"}}, scales:{x:{type:"category", labels:S.map(s=>s.date)}, y:{title:{display:true,text:"VDOT"}}}}});
+  const PW = D.plan.weeks;
+  const phaseColor = {build:"#3b82f6", absorb:"#94a3b8", specific:"#f97316", test:"#a855f7", peak:"#ef4444", taper:"#22c55e", race:"#f59e0b"};
+  mkChart("ch-period", {type:"bar", data:{labels:PW.map(w=>`W${w.k} ${w.label.split(" ~ ")[0]}`), datasets:[{label:"目標跑量", data:PW.map(w=>w.target_km), backgroundColor:PW.map(w=>phaseColor[w.phase_key]||"#999")},{label:"實際", data:PW.map(w=>w.actual_km||null), type:"line", borderColor:"#0f172a", pointBackgroundColor:"#0f172a"}]},
+    options:{plugins:{legend:{display:false}, tooltip:{callbacks:{afterLabel:c=>PW[c.dataIndex].phase}}}, scales:{y:{title:{display:true,text:"km / 週"}}}}});
+}
+
+// ------------------------------------------------------------ plan
+function restBadge(rest){ if(!rest) return ""; const jog = /跑休/.test(rest), stand = /停休|走/.test(rest); return `<span class="badge ${jog?"bg-sky-100 text-sky-700":stand?"bg-amber-100 text-amber-700":"bg-slate-100 text-slate-600"}">${jog&&stand?"跑休/停休":jog?"跑休":stand?"停休":"休息"}</span>`; }
+function dayCard(day, week, big){
+  const s = day.session, st = STATUS[day.status]||["",""];
+  const color = TYPE_COLOR[s.type]||"#cbd5e1";
+  const actual = (day.actual||[]).map(a=>`<div class="mt-2 text-xs bg-slate-50 rounded-lg p-2 flex flex-wrap items-center gap-2 cursor-pointer hover:bg-slate-100" onclick="openWorkout('${a.labelId}')"><span class="badge" style="background:${TYPE_COLOR[a.type]}22;color:${TYPE_COLOR[a.type]}">${a.indoor?"🏠":"🌳"} 實際 · ${a.type_label}</span><span>${a.distance_km} km · ${a.pace}/km · ${a.avg_hr||"-"} bpm</span><span class="text-sky-600 font-bold ml-auto">查看 →</span></div>`).join("");
+  const body = `
+    <dl class="kv mt-3">
+      <dt>練習重點</dt><dd class="font-bold">${esc(s.purpose)}</dd>
+      ${s.warmup?`<dt>熱身</dt><dd>${esc(s.warmup)}</dd>`:""}
+      <dt>主課表</dt><dd>${esc(s.main)}</dd>
+      ${s.rest?`<dt>組間休息</dt><dd>${restBadge(s.rest)} ${esc(s.rest)}</dd>`:""}
+      ${s.cooldown?`<dt>收操</dt><dd>${esc(s.cooldown)}</dd>`:""}
+      ${s.target_pace?`<dt>目標配速</dt><dd class="font-mono text-sky-700 font-bold">${esc(s.target_pace)}</dd>`:""}
+      ${s.target_hr?`<dt>目標心率</dt><dd class="font-mono">${esc(s.target_hr)}</dd>`:""}
+      ${s.method?`<dt>方法來源</dt><dd><span class="badge bg-violet-100 text-violet-700">${esc(s.method)}</span></dd>`:""}
+    </dl>
+    ${s.notes&&s.notes.length?`<div class="mt-3 text-xs"><div class="font-bold text-slate-600 mb-1">📝 注意事項</div><ul class="list-disc pl-4 space-y-0.5 text-slate-600">${s.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}
+    ${s.cautions&&s.cautions.length?`<div class="mt-2 text-xs"><div class="font-bold text-rose-600 mb-1">⚠️ 警示</div><ul class="list-disc pl-4 space-y-0.5 text-rose-700">${s.cautions.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}`;
+  return `<div class="card stripe p-4 ${big?"":"text-sm"}" style="border-color:${color}">
+    <div class="flex items-start justify-between gap-2">
+      <div><div class="text-xs text-slate-500 font-bold">${day.date.slice(5).replace("-","/")} ${day.weekday}${day.override?' <span class="badge bg-fuchsia-100 text-fuchsia-700">教練調整</span>':""}</div>
+      <div class="font-black ${big?"text-xl":"text-base"} mt-0.5">${esc(s.title)}</div></div>
+      <div class="text-right shrink-0">${st[0]?`<span class="badge ${st[1]}">${st[0]}</span>`:""}<div class="text-xs text-slate-500 mt-1">${s.est_km? s.est_km+" km":""}</div></div>
+    </div>
+    ${big? body : `<details class="mt-1"><summary class="text-xs text-sky-600 font-bold">展開完整內容 ▾</summary>${body}</details>`}
+    ${actual}
+  </div>`;
+}
+function renderPlan(){
+  const p = D.plan; const weeks = p.weeks.slice(0,8);
+  $("#tab-plan").innerHTML = `
+  <div class="card p-5"><div class="flex flex-wrap gap-4 items-center justify-between"><div><div class="font-black text-lg">接下來 8 週課表</div><div class="text-sm text-slate-600">跑量基準 ${p.base_km} km/週（近 3 週實際）→ 巔峰 ${p.peak_km} km；長跑日：${p.long_day}；品質課：${p.long_day==="週六"?"週一閾值 / 週三跑班 / 週六長跑":"週三跑班 / 週五閾值 / 週日長跑"}。每次同步後自動重排，課表隨你的實際執行調整。</div></div>
+  <div class="flex gap-2 text-xs flex-wrap">${Object.entries(TYPE_LABEL).filter(([k])=>["easy","recovery","tempo","interval","long","race","rest"].includes(k)).map(([k,v])=>`<span class="badge" style="background:${TYPE_COLOR[k]}22;color:${k==="rest"?"#64748b":TYPE_COLOR[k]}">■ ${v}</span>`).join("")}</div></div></div>
+  ${weeks.map(w=>`
+  <div class="card p-5 ${w.is_current?"ring-2 ring-orange-400":""}">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+      <div><div class="text-xs font-bold text-slate-500">第 ${w.k} 週 · ${w.label}${w.is_current?' <span class="badge bg-orange-100 text-orange-700">本週</span>':""}</div>
+        <div class="font-black text-lg">${esc(w.phase)}</div>
+        <div class="text-sm text-slate-600 mt-0.5">${esc(w.focus||"")}</div></div>
+      <div class="text-right text-sm"><div><span class="text-slate-500">目標</span> <b>${w.target_km} km</b> · <span class="text-slate-500">計畫</span> <b>${w.planned_km} km</b>${w.actual_km?` · <span class="text-slate-500">實際</span> <b class="text-emerald-600">${w.actual_km} km</b>`:""}</div>
+        <div class="text-xs text-slate-500 mt-1">本週 HMP <b class="font-mono text-sky-700">${w.hmp}</b> · T ${w.paces.T} · I ${w.paces.I} · E ${w.paces.E_slow}–${w.paces.E_fast}</div></div>
+    </div>
+    ${w.adjustments&&w.adjustments.length?`<div class="mb-3 text-sm bg-amber-50 border border-amber-200 rounded-xl p-3"><b>🤖 自動調整：</b><ul class="list-disc pl-5">${w.adjustments.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
+    ${w.note?`<div class="mb-3 text-sm bg-fuchsia-50 border border-fuchsia-200 rounded-xl p-3"><b>🧑‍🏫 教練備註：</b>${esc(w.note)}</div>`:""}
+    <div class="grid md:grid-cols-2 xl:grid-cols-4 gap-3">${w.days.map(d=>dayCard(d,w,false)).join("")}</div>
+  </div>`).join("")}`;
+}
+
+// ------------------------------------------------------------ history
+let histFilter = "all";
+function renderHistory(){
+  const ws = D.workouts;
+  const chips = [["all","全部"],["outdoor","🌳 戶外"],["indoor","🏠 室內"],["quality","🔥 品質課"],["long","🛣 長跑"]].map(([k,v])=>`<button onclick="histFilter='${k}';renderHistory()" class="px-3 py-1.5 rounded-full text-sm font-bold ${histFilter===k?"bg-slate-900 text-white":"bg-white text-slate-600 border"}">${v}</button>`).join("");
+  const list = ws.filter(w=> histFilter==="all" || (histFilter==="outdoor"&&!w.indoor) || (histFilter==="indoor"&&w.indoor) || (histFilter==="quality"&&["tempo","interval","race"].includes(w.type)) || (histFilter==="long"&&["long","progression"].includes(w.type)));
+  const nOut = ws.filter(w=>!w.indoor).length, nIn = ws.length-nOut;
+  $("#tab-history").innerHTML = `
+  <div class="card p-4 flex flex-wrap items-center gap-2 justify-between"><div class="flex gap-2 flex-wrap">${chips}</div><div class="text-xs text-slate-500">最近 20 次：戶外 ${nOut} · 室內 ${nIn} · 平均 ${stars(Math.round(ws.reduce((a,w)=>a+w.stars,0)/Math.max(1,ws.length)))}</div></div>
+  <div class="space-y-3">${list.map((w,i)=>`
+    <div class="card stripe p-4" style="border-color:${w.type_color}">
+      <div class="flex flex-wrap items-start gap-3">
+        <div class="w-16 shrink-0 text-center"><div class="text-2xl font-black">${w.date.slice(8)}</div><div class="text-xs text-slate-500">${w.date.slice(0,7)}<br>${w.weekday}</div></div>
+        <div class="flex-1 min-w-[240px]">
+          <div class="flex flex-wrap items-center gap-2"><span class="badge" style="background:${w.type_color}22;color:${w.type_color}">${w.type_label}</span><span class="badge ${w.indoor?"bg-slate-100 text-slate-600":"bg-emerald-50 text-emerald-700"}">${w.indoor?"🏠 室內跑步機":"🌳 "+esc(w.location||"戶外")}</span>${w.planned?`<span class="badge ${STATUS[w.planned.match]?STATUS[w.planned.match][1]:""}">課表：${esc(w.planned.title)} ${w.planned.match==="hit"?"✅":w.planned.match==="partial"?"🟡":"🔁"}</span>`:""}${w.coach_override?'<span class="badge bg-fuchsia-100 text-fuchsia-700">教練覆核</span>':""}</div>
+          <div class="font-black text-lg mt-1">${esc(w.summary)}</div>
+          <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600 mt-1 font-mono">
+            <span>📏 ${w.distance_km} km</span><span>⏱ ${fmtTime(w.duration_s)}</span><span>⚡ ${fmtPace(w.pace_s)}/km</span><span>❤️ ${w.avg_hr||"-"}${w.max_hr?"/"+Math.round(w.max_hr):""} bpm</span>${w.cadence?`<span>👣 ${Math.round(w.cadence)} spm</span>`:""}${w.stride_m?`<span>↔ ${w.stride_m.toFixed(2)} m</span>`:""}${w.elev_gain?`<span>⛰ +${Math.round(w.elev_gain)} m</span>`:""}${w.training_load?`<span>📊 TL ${Math.round(w.training_load)}</span>`:""}
+          </div>
+          <div class="mt-2 text-sm text-slate-700 leading-relaxed">${esc(w.evaluation)}</div>
+          ${w.next_step?`<div class="mt-1 text-xs text-sky-700"><b>下一步：</b>${esc(w.next_step)}</div>`:""}
+        </div>
+        <div class="text-right shrink-0"><div>${stars(w.stars)}</div><button onclick="openWorkout('${w.labelId}')" class="mt-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">📈 路線 / 圖表</button></div>
+      </div>
+    </div>`).join("")}</div>`;
+}
+
+function openWorkout(id){
+  const w = D.workouts.find(x=>x.labelId===id); if(!w) return;
+  const st = D.streams[id];
+  const zt = w.zone_time||[0,0,0,0,0], ztot = zt.reduce((a,b)=>a+b,0)||1;
+  const laps = (st&&st.laps||[]).filter(l=>l.dist_m>50);
+  $("#modal-body").innerHTML = `
+    <div class="flex items-start justify-between gap-3">
+      <div><div class="text-xs text-slate-500 font-bold">${w.date} ${w.weekday} · ${w.indoor?"🏠 室內跑步機":"🌳 "+esc(w.location||"戶外")}</div><div class="text-2xl font-black">${esc(w.summary)}</div><div class="mt-1">${stars(w.stars)} <span class="badge ml-2" style="background:${w.type_color}22;color:${w.type_color}">${w.type_label}</span></div></div>
+      <button onclick="closeModal()" class="text-slate-400 hover:text-slate-900 text-2xl leading-none">✕</button>
+    </div>
+    <div class="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4 text-center">
+      ${[["距離",w.distance_km+" km"],["時間",fmtTime(w.duration_s)],["配速",fmtPace(w.pace_s)+"/km"],["平均/最高心率",(w.avg_hr||"-")+" / "+(w.max_hr?Math.round(w.max_hr):"-")],["步頻",w.cadence?Math.round(w.cadence)+" spm":"-"],["步幅",w.stride_m?w.stride_m.toFixed(2)+" m":"-"],["功率",w.power?Math.round(w.power)+" W":"-"],["爬升",w.elev_gain!=null?"+"+Math.round(w.elev_gain)+" m":"-"],["訓練負荷",w.training_load?Math.round(w.training_load):"-"],["有氧/無氧 TE",w.aerobic_te?w.aerobic_te+" / "+w.anaerobic_te:"-"],["心率漂移",w.drift_pct!=null?w.drift_pct+"%":"-"],["前/後半配速",w.half_pace?fmtPace(w.half_pace[0])+" / "+fmtPace(w.half_pace[1]):"-"]].map(x=>`<div class="bg-slate-50 rounded-xl p-2"><div class="text-[10px] text-slate-500">${x[0]}</div><div class="font-bold text-sm">${x[1]}</div></div>`).join("")}
+    </div>
+    <div class="grid lg:grid-cols-2 gap-4 mt-4">
+      <div>${w.has_gps && st && st.route && st.route.length>5 ? '<div id="map"></div>' : '<div class="h-[300px] rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 text-sm">🏠 室內/無 GPS 路線</div>'}</div>
+      <div class="card p-3"><div class="text-sm font-bold mb-1">心率區間分布</div>${D.athlete.zones.map((z,i)=>`<div class="flex items-center gap-2 text-xs mb-1"><div class="w-14 font-bold">${z.name.split(" ")[0]}</div><div class="flex-1 bg-slate-100 rounded h-4 overflow-hidden"><div class="h-4" style="width:${pct(zt[i],ztot)}%;background:${["#94a3b8","#22c55e","#f59e0b","#f97316","#ef4444"][i]}"></div></div><div class="w-20 text-right font-mono">${pct(zt[i],ztot)}% · ${fmtTime(zt[i])}</div></div>`).join("")}
+        <div class="text-sm font-bold mt-3 mb-1">教練評語</div><div class="text-sm text-slate-700 leading-relaxed">${esc(w.evaluation)}</div>${w.next_step?`<div class="mt-1 text-xs text-sky-700"><b>下一步：</b>${esc(w.next_step)}</div>`:""}</div>
+    </div>
+    ${st && st.series && st.series.length>5 ? `
+    <div class="mt-4 card p-3"><div class="flex items-center justify-between"><div class="text-sm font-bold">配速 / 心率 / 步頻 / 步幅（依距離）</div><div class="text-xs text-slate-500">點擊圖例可隱藏/顯示</div></div><canvas id="ch-stream" height="120"></canvas></div>
+    <div class="mt-3 card p-3"><div class="text-sm font-bold">海拔</div><canvas id="ch-alt" height="50"></canvas></div>` : '<div class="mt-4 text-sm text-slate-500">此筆紀錄無逐秒資料（FIT）。</div>'}
+    ${laps.length? `<div class="mt-4 card p-3 overflow-x-auto scrollbar-thin"><div class="text-sm font-bold mb-2">分段 (Laps)</div><table class="w-full text-xs font-mono"><thead><tr class="text-slate-500 border-b"><th class="text-left py-1">#</th><th class="text-right">距離</th><th class="text-right">時間</th><th class="text-right">配速</th><th class="text-right">平均心率</th><th class="text-right">最高心率</th><th class="text-right">步頻</th><th class="text-right">步幅</th><th class="text-right">爬升</th></tr></thead><tbody>
+      ${laps.map(l=>{const fast = l.pace && l.pace < (w.pace_s||999)-15; return `<tr class="border-b border-slate-100 ${fast?"bg-orange-50":""}"><td class="py-1">${l.i}</td><td class="text-right">${l.dist_m>=950?(l.dist_m/1000).toFixed(2)+" km":l.dist_m+" m"}</td><td class="text-right">${fmtTime(l.time_s)}</td><td class="text-right font-bold">${fmtPace(l.pace)}</td><td class="text-right">${l.avg_hr||"-"}</td><td class="text-right">${l.max_hr||"-"}</td><td class="text-right">${l.cad?Math.round(l.cad):"-"}</td><td class="text-right">${l.sl?(l.sl/1000).toFixed(2):"-"}</td><td class="text-right">${l.asc||0}</td></tr>`}).join("")}</tbody></table></div>`:""}`;
+  $("#modal").classList.remove("hidden"); document.body.style.overflow="hidden";
+  setTimeout(()=>{
+    if(w.has_gps && st && st.route && st.route.length>5){
+      if(map){ map.remove(); map=null; }
+      map = L.map("map", {scrollWheelZoom:false});
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap"}).addTo(map);
+      const line = L.polyline(st.route, {color:"#ef4444", weight:4}).addTo(map);
+      L.circleMarker(st.route[0],{radius:6,color:"#22c55e",fillColor:"#22c55e",fillOpacity:1}).addTo(map).bindTooltip("起點");
+      L.circleMarker(st.route[st.route.length-1],{radius:6,color:"#0f172a",fillColor:"#0f172a",fillOpacity:1}).addTo(map).bindTooltip("終點");
+      map.fitBounds(line.getBounds(),{padding:[20,20]});
+    }
+    if(st && st.series && st.series.length>5){
+      const S = st.series; const xs = S.map(p=> p.d!=null? +(p.d/1000).toFixed(2) : +(p.t/60).toFixed(1));
+      const useDist = S.some(p=>p.d!=null && p.d>0);
+      mkChart("ch-stream", {type:"line", data:{labels:xs, datasets:[
+        {label:"配速 (/km)", data:S.map(p=>p.pace? p.pace/60:null), borderColor:"#0ea5e9", backgroundColor:"#0ea5e9", yAxisID:"yp", pointRadius:0, borderWidth:2, tension:.25, spanGaps:true},
+        {label:"心率 (bpm)", data:S.map(p=>p.hr), borderColor:"#ef4444", backgroundColor:"#ef4444", yAxisID:"yh", pointRadius:0, borderWidth:2, tension:.25, spanGaps:true},
+        {label:"步頻 (spm)", data:S.map(p=>p.cad), borderColor:"#22c55e", backgroundColor:"#22c55e", yAxisID:"yc", pointRadius:0, borderWidth:1.5, tension:.25, spanGaps:true, hidden:false},
+        {label:"步幅 (m)", data:S.map(p=>p.sl? p.sl/1000:null), borderColor:"#a855f7", backgroundColor:"#a855f7", yAxisID:"ys", pointRadius:0, borderWidth:1.5, tension:.25, spanGaps:true, hidden:true}]},
+        options:{responsive:true, interaction:{mode:"index", intersect:false}, plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{title:i=> (useDist? i[0].label+" km":i[0].label+" min"), label:c=> c.dataset.label.startsWith("配速")? "配速 "+fmtPace(c.raw*60)+"/km": c.dataset.label+" "+(c.raw==null?"-":(+c.raw).toFixed(c.dataset.label.startsWith("步幅")?2:0))}}},
+          scales:{x:{title:{display:true,text:useDist?"距離 (km)":"時間 (分)"}, ticks:{maxTicksLimit:12}},
+            yp:{position:"left", reverse:true, ticks:{callback:v=>fmtPace(v*60)}, title:{display:true,text:"配速"}, suggestedMin:3.2, suggestedMax:7.5},
+            yh:{position:"right", title:{display:true,text:"bpm"}, grid:{drawOnChartArea:false}, suggestedMin:90, suggestedMax:200},
+            yc:{position:"right", display:false, suggestedMin:120, suggestedMax:220}, ys:{position:"right", display:false, suggestedMin:0.6, suggestedMax:1.8}}}});
+      mkChart("ch-alt", {type:"line", data:{labels:xs, datasets:[{label:"海拔 (m)", data:S.map(p=>p.alt), borderColor:"#64748b", backgroundColor:"#cbd5e155", fill:true, pointRadius:0, borderWidth:1.5, tension:.3, spanGaps:true}]}, options:{plugins:{legend:{display:false}}, scales:{x:{display:false}, y:{ticks:{maxTicksLimit:4}}}}});
+    }
+  }, 50);
+}
+function closeModal(){ $("#modal").classList.add("hidden"); document.body.style.overflow=""; }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeModal(); });
+
+// ------------------------------------------------------------ weekly
+function renderWeekly(){
+  const W = D.weekly;
+  $("#tab-weekly").innerHTML = `
+  <div class="card p-5 overflow-x-auto scrollbar-thin"><div class="font-black text-lg mb-3">過去 8 週（＋本週）週統計</div>
+  <table class="w-full text-sm"><thead><tr class="text-left text-slate-500 border-b"><th class="py-2">週</th><th class="text-right">跑量</th><th class="text-right">次數</th><th class="text-right">時間</th><th class="text-right">平均配速</th><th class="text-right">平均心率</th><th class="text-right">最長</th><th class="text-right">品質課</th><th class="text-right">室內/戶外</th><th class="text-right">負荷</th><th class="text-right">評分</th><th>教練評語</th></tr></thead><tbody>
+  ${W.map(w=>`<tr class="border-b border-slate-100 ${w.isCurrent?"bg-orange-50":""}"><td class="py-2 font-bold whitespace-nowrap">${w.label}${w.isCurrent?" <span class='badge bg-orange-100 text-orange-700'>本週</span>":""}</td><td class="text-right font-mono font-bold">${w.distance_km}</td><td class="text-right">${w.runs}</td><td class="text-right font-mono">${fmtTime(w.duration_s)}</td><td class="text-right font-mono">${w.pace}</td><td class="text-right font-mono">${w.avg_hr||"-"}</td><td class="text-right font-mono">${w.longest_km}</td><td class="text-right">${w.quality_sessions}</td><td class="text-right font-mono text-xs">${w.indoor_km} / ${w.outdoor_km}</td><td class="text-right font-mono">${w.load||"-"}</td><td class="text-right">${w.stars?stars(Math.round(w.stars)):"-"}</td><td class="text-xs text-slate-600 min-w-[220px]">${esc(w.comment)}</td></tr>`).join("")}
+  </tbody></table></div>
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="card p-5"><div class="font-black mb-2">各週跑量依訓練類型</div><canvas id="ch-wtype" height="180"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">各週心率區間時間分布</div><canvas id="ch-wzone" height="180"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">平均配速與平均心率趨勢</div><canvas id="ch-wpace" height="180"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">室內 vs 戶外 與 最長距離</div><canvas id="ch-wio" height="180"></canvas></div>
+  </div>`;
+}
+function renderWeeklyCharts(){
+  const W = D.weekly; const labels = W.map(w=>w.label);
+  const types = ["recovery","easy","long","progression","tempo","interval","race","strides"];
+  mkChart("ch-wtype",{type:"bar",data:{labels,datasets:types.map(t=>({label:TYPE_LABEL[t],data:W.map(w=>w.by_type[t]||0),backgroundColor:TYPE_COLOR[t],stack:"a"}))},options:{plugins:{legend:{position:"bottom"}},scales:{x:{stacked:true},y:{stacked:true,title:{display:true,text:"km"}}}}});
+  const zc=["#94a3b8","#22c55e","#f59e0b","#f97316","#ef4444"];
+  mkChart("ch-wzone",{type:"bar",data:{labels,datasets:[0,1,2,3,4].map(i=>({label:"Z"+(i+1),data:W.map(w=>+(w.zone_time[i]/60).toFixed(0)),backgroundColor:zc[i],stack:"a"}))},options:{plugins:{legend:{position:"bottom"}},scales:{x:{stacked:true},y:{stacked:true,title:{display:true,text:"分鐘"}}}}});
+  mkChart("ch-wpace",{type:"line",data:{labels,datasets:[{label:"平均配速",data:W.map(w=>w.pace_s?w.pace_s/60:null),borderColor:"#0ea5e9",yAxisID:"y",tension:.3,spanGaps:true},{label:"平均心率",data:W.map(w=>w.avg_hr),borderColor:"#ef4444",yAxisID:"y2",tension:.3,spanGaps:true}]},options:{plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>c.dataset.yAxisID==="y"?"配速 "+fmtPace(c.raw*60):"心率 "+c.raw}}},scales:{y:{reverse:true,ticks:{callback:v=>fmtPace(v*60)}},y2:{position:"right",grid:{drawOnChartArea:false}}}}});
+  mkChart("ch-wio",{type:"bar",data:{labels,datasets:[{label:"室內 km",data:W.map(w=>w.indoor_km),backgroundColor:"#93c5fd",stack:"a"},{label:"戶外 km",data:W.map(w=>w.outdoor_km),backgroundColor:"#3b82f6",stack:"a"},{label:"最長單次 km",data:W.map(w=>w.longest_km),type:"line",borderColor:"#f97316",tension:.3}]},options:{plugins:{legend:{position:"bottom"}},scales:{x:{stacked:true},y:{stacked:true}}}});
+}
+
+// ------------------------------------------------------------ wellness
+function renderWellness(){
+  const w = D.wellness||{};
+  const raw = w.raw||{};
+  const box = (t, v) => `<div class="card p-4"><div class="text-xs text-slate-500 font-bold">${t}</div><div class="text-xl font-black mt-1">${v??"-"}</div></div>`;
+  $("#tab-wellness").innerHTML = `
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    ${box("COROS VO2max", w.vo2max)}${box("COROS 閾值配速", w.threshold_pace? w.threshold_pace+"/km":null)}${box("恢復程度", w.recovery_pct!=null? w.recovery_pct+"%":null)}${box("負荷比 (短/長期)", w.load_ratio!=null? w.load_ratio+" ("+(w.load_short??"-")+"/"+(w.load_long??"-")+")":null)}
+  </div>
+  ${w.predictions&&Object.keys(w.predictions).length?`<div class="card p-4"><div class="font-bold mb-1">COROS 成績預測</div><div class="flex flex-wrap gap-4 text-sm">${Object.entries(w.predictions).map(([k,v])=>`<div><span class="text-slate-500">${({"5k":"5K","10k":"10K",half:"半馬",full:"全馬"})[k]}</span> <b class="font-mono">${v}</b></div>`).join("")}</div></div>`:""}
+  <div class="grid lg:grid-cols-3 gap-5">
+    <div class="card p-5"><div class="font-black mb-2">靜止心率 (14 天)</div><canvas id="ch-rhr" height="160"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">睡眠時數 (7 天)</div><canvas id="ch-sleep" height="160"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">睡眠 HRV (7 天)</div><canvas id="ch-hrv" height="160"></canvas></div>
+  </div>
+  <details class="card p-4"><summary class="font-bold text-sm">COROS 原始回應（體能評估 / 負荷 / 恢復 / 睡眠）</summary><pre class="text-xs whitespace-pre-wrap mt-2 text-slate-600 max-h-96 overflow-auto scrollbar-thin">${esc(["fitness","load","recovery","sleep","rhr","hrv"].map(k=>"### "+k+"\n"+(typeof raw[k]==="string"?raw[k]:JSON.stringify(raw[k],null,1))).join("\n\n"))}</pre></details>`;
+}
+function renderWellnessCharts(){
+  const w = D.wellness||{};
+  const line = (id, series, key, color, label) => mkChart(id,{type:"line",data:{labels:series.map(s=>s.date.slice(5)),datasets:[{label,data:series.map(s=>s[key]),borderColor:color,backgroundColor:color+"33",fill:true,tension:.3}]},options:{plugins:{legend:{display:false}}}});
+  line("ch-rhr", w.rhr_series||[], "rhr", "#ef4444", "RHR"); line("ch-sleep", w.sleep_series||[], "hours", "#6366f1", "小時"); line("ch-hrv", w.hrv_series||[], "hrv", "#22c55e", "HRV");
+}
+
+// ------------------------------------------------------------ method
+function renderMethod(){
+  $("#tab-method").innerHTML = `
+  <div class="grid md:grid-cols-2 gap-4">${D.methodology.map(m=>`<div class="card p-5"><div class="font-black text-lg">${m.icon} ${esc(m.name)}</div><p class="text-sm text-slate-700 leading-relaxed mt-2">${esc(m.text)}</p></div>`).join("")}</div>
+  <div class="card p-5"><div class="font-black text-lg mb-2">名詞速查</div><dl class="kv text-sm">
+    <dt>跑休</dt><dd>組間以非常慢的慢跑（約 E 配速 +20～30 秒）恢復，不停下來。優點：維持攝氧量在高檔、下一趟更快進入狀態；適合 ≥600 m 的間歇與所有閾值課。</dd>
+    <dt>停休</dt><dd>組間站立或走動。適合 ≤400 m 的短間歇、R 配速反覆跑與大步跑，讓每一趟都能維持速度品質。</dd>
+    <dt>等時跑休</dt><dd>跑多久就慢跑多久（例：800 m 跑 3:00，就慢跑 3:00）。</dd>
+    <dt>HMP</dt><dd>半馬目標配速。本計畫從目前實力對應的半馬配速逐週逼近 4:07（87 分）；每次新增訓練後重算。</dd>
+    <dt>T / I / R</dt><dd>Daniels 閾值 / 間歇 (VO2max) / 反覆 (速度) 配速。</dd>
+    <dt>心率漂移</dt><dd>同一配速下後半段心率上升的幅度（效率衰退）；<5% 表示該配速對你是可持續的，>10% 表示有氧耐力不足或環境/狀態不佳。</dd>
+    <dt>ACWR</dt><dd>急性 (7 天) / 慢性 (28 天平均) 跑量比。0.8–1.3 安全，>1.5 受傷風險顯著上升。</dd>
+  </dl></div>`;
+}
+</script>
 </body>
 </html>
