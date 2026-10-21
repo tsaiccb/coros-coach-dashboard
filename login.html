@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>COROS 重新授權</title>
+<style>
+  body{font-family:-apple-system,"Noto Sans TC",sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+  .card{background:#1e293b;border-radius:20px;padding:36px 32px;max-width:520px;width:92%;box-shadow:0 20px 50px rgba(0,0,0,.4);text-align:center}
+  h1{font-size:22px;margin:0 0 10px}
+  p{color:#94a3b8;line-height:1.6;font-size:14px}
+  a.btn{display:inline-block;margin-top:18px;background:linear-gradient(135deg,#f97316,#ef4444);color:#fff;text-decoration:none;font-weight:700;padding:16px 28px;border-radius:14px;font-size:18px}
+  .meta{margin-top:18px;font-size:12px;color:#64748b}
+  .ok{color:#22c55e;font-weight:700}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔑 COROS 連線重新授權</h1>
+  <p>每個授權連結只有約 5 分鐘效期，教練系統會自動每 4 分鐘產生新連結。<br>下方按鈕永遠指向<strong>最新</strong>的連結，點擊後用你的 COROS 帳號登入並同意授權即可。</p>
+  <div id="box"><p>讀取最新連結中…</p></div>
+  <div class="meta" id="meta"></div>
+</div>
+<script>
+async function load(){
+  try{
+    const r = await fetch('login.json?t=' + Date.now(), {cache:'no-store'});
+    const j = await r.json();
+    const box = document.getElementById('box');
+    const meta = document.getElementById('meta');
+    if (j.done) {
+      box.innerHTML = '<p class="ok">✅ 已完成授權，教練系統已重新連上 COROS。可以關閉此頁。</p>';
+      meta.textContent = '完成時間：' + j.ts;
+      return;
+    }
+    if (!j.url) { box.innerHTML = '<p>目前沒有可用連結，請稍後重新整理。</p>'; return; }
+    const age = Math.round((Date.now() - new Date(j.ts).getTime())/1000);
+    box.innerHTML = '<a class="btn" href="' + j.url + '">前往 COROS 授權 →</a>';
+    meta.textContent = '連結產生於 ' + j.ts + '（' + age + ' 秒前）。若顯示 session expired，請重新整理本頁再點一次。';
+  }catch(e){ document.getElementById('box').innerHTML = '<p>讀取失敗，請重新整理。</p>'; }
+}
+load();
+setInterval(load, 20000);
+</script>
+</body>
+</html>
