@@ -45,7 +45,10 @@
       <button data-tab="plan" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練課表 (8 週)</button>
       <button data-tab="history" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練紀錄 (20)</button>
       <button data-tab="weekly" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">週統計 (8 週)</button>
+      <button data-tab="tech" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">技術分析</button>
+      <button data-tab="calc" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">配速計算</button>
       <button data-tab="wellness" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">身體狀態</button>
+      <button data-tab="chat" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">教練室 Q&A</button>
       <button data-tab="method" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練方法論</button>
     </nav>
   </div>
@@ -58,7 +61,10 @@
   <section id="tab-plan" class="tab hidden space-y-6"></section>
   <section id="tab-history" class="tab hidden space-y-6"></section>
   <section id="tab-weekly" class="tab hidden space-y-6"></section>
+  <section id="tab-tech" class="tab hidden space-y-6"></section>
+  <section id="tab-calc" class="tab hidden space-y-6"></section>
   <section id="tab-wellness" class="tab hidden space-y-6"></section>
+  <section id="tab-chat" class="tab hidden space-y-6"></section>
   <section id="tab-method" class="tab hidden space-y-6"></section>
 </main>
 
@@ -84,7 +90,7 @@ const pct = (a,b) => b? Math.round(a/b*100):0;
 function mkChart(id, cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el) return; charts[id]=new Chart(el, cfg); }
 
 // ------------------------------------------------------------ tabs
-$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); });
+$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); });
 
 // ------------------------------------------------------------ load
 fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(d=>{ D=d; renderAll(); }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
@@ -93,7 +99,7 @@ function renderAll(){
   $("#updated").textContent = D.generated_at;
   $("#countdown").textContent = `距離比賽 ${D.race.days_left} 天`;
   if(D.notify && D.notify.length){ $("#notify").classList.remove("hidden"); $("#notify").innerHTML = `<div class="card p-4 border-l-4 border-emerald-500 flex items-start gap-3"><div class="text-2xl">🆕</div><div><div class="font-bold">已更新訓練 (${D.generated_at})</div><div class="text-sm text-slate-600">新增 ${D.notify.length} 筆：${D.notify.map(n=>esc(n)).join("、")}。課表已依最新數據重新計算。</div></div></div>`; }
-  renderOverview(); renderPlan(); renderHistory(); renderWeekly(); renderWellness(); renderMethod();
+  renderOverview(); renderPlan(); renderHistory(); renderWeekly(); renderWellness(); renderMethod(); renderTech(); renderCalc(); renderChat();
   renderOverviewCharts();
 }
 
@@ -184,6 +190,17 @@ function dayCard(day, week, big){
       ${s.target_hr?`<dt>目標心率</dt><dd class="font-mono">${esc(s.target_hr)}</dd>`:""}
       ${s.method?`<dt>方法來源</dt><dd><span class="badge bg-violet-100 text-violet-700">${esc(s.method)}</span></dd>`:""}
     </dl>
+    ${s.challenge?`<div class="mt-3 rounded-xl border border-orange-200 overflow-hidden text-xs">
+      <div class="flex">
+        <div class="flex-1 px-3 py-1.5 bg-slate-100 font-bold text-slate-600">🟢 標準版（上方內容）</div>
+        <div class="flex-1 px-3 py-1.5 bg-orange-50 font-bold text-orange-700">🔥 挑戰版（狀態好時可選）</div>
+      </div>
+      <div class="p-3 bg-orange-50/50">
+        <div class="font-bold text-orange-800">${esc(s.challenge.title)}</div>
+        <div class="text-slate-700 mt-0.5">${esc(s.challenge.change)}${s.challenge.est_delta_km?` （約 +${s.challenge.est_delta_km} km）`:""}</div>
+        ${s.challenge.note?`<div class="text-slate-600 mt-1">※ ${esc(s.challenge.note)}</div>`:""}
+        <details class="mt-1"><summary class="text-orange-700 font-bold">挑戰前提（點開）</summary><div class="text-slate-600 mt-1 leading-relaxed">${esc(s.challenge.guard)}</div></details>
+      </div></div>`:""}
     ${s.notes&&s.notes.length?`<div class="mt-3 text-xs"><div class="font-bold text-slate-600 mb-1">📝 注意事項</div><ul class="list-disc pl-4 space-y-0.5 text-slate-600">${s.notes.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}
     ${s.cautions&&s.cautions.length?`<div class="mt-2 text-xs"><div class="font-bold text-rose-600 mb-1">⚠️ 警示</div><ul class="list-disc pl-4 space-y-0.5 text-rose-700">${s.cautions.map(n=>`<li>${esc(n)}</li>`).join("")}</ul></div>`:""}`;
   return `<div class="card stripe p-4 ${big?"":"text-sm"}" style="border-color:${color}">
@@ -357,6 +374,168 @@ function renderWellnessCharts(){
   mkChart("ch-sleep",{type:"bar",data:{labels:sl.map(s=>s.date.slice(5)),datasets:[{label:"主睡眠 (小時)",data:sl.map(s=>s.hours),backgroundColor:sl.map(s=>s.hours<6?"#f43f5e":s.hours<7?"#f59e0b":"#6366f1"),yAxisID:"y"},{label:"睡眠分數",data:sl.map(s=>s.score>0?s.score:null),type:"line",borderColor:"#0f172a",yAxisID:"y2",tension:.3,spanGaps:true}]},options:{plugins:{legend:{position:"bottom"}},scales:{y:{title:{display:true,text:"小時"},suggestedMax:9},y2:{position:"right",min:0,max:100,grid:{drawOnChartArea:false}}}}});
   const ld = w.load_series||[];
   mkChart("ch-load",{type:"line",data:{labels:ld.map(s=>s.date.slice(5)),datasets:[{label:"短期負荷",data:ld.map(s=>s.short),borderColor:"#f97316",tension:.3,yAxisID:"y"},{label:"長期負荷",data:ld.map(s=>s.long),borderColor:"#3b82f6",tension:.3,yAxisID:"y"},{label:"負荷比",data:ld.map(s=>s.ratio),borderColor:"#0f172a",borderDash:[5,4],tension:.3,yAxisID:"y2"}]},options:{plugins:{legend:{position:"bottom"},tooltip:{callbacks:{afterBody:i=>ld[i[0].dataIndex]?.comment}}},scales:{y:{title:{display:true,text:"負荷"}},y2:{position:"right",suggestedMin:0.5,suggestedMax:1.5,grid:{drawOnChartArea:false}}}}});
+}
+
+// ------------------------------------------------------------ tech analysis
+let techMode = "out";
+function renderTech(){
+  const t = D.tech||{}; const o = techMode==="out";
+  const bands = o? (t.bands_out||[]) : (t.bands_in||[]);
+  const lvl = {good:["bg-emerald-50 border-emerald-400","✅"], warn:["bg-rose-50 border-rose-400","⚠️"], info:["bg-sky-50 border-sky-400","💡"]};
+  $("#tab-tech").innerHTML = `
+  <div class="card p-4 flex flex-wrap items-center justify-between gap-3">
+    <div><div class="font-black text-lg">技術分析（近 ${t.window_days||84} 天）</div><div class="text-xs text-slate-500">步頻／步幅／心率 與速度的關係、有氧效率趨勢、心率漂移、強度分布。資料點 = 每個 ≥ 1 km 的分段。</div></div>
+    <div class="flex gap-2"><button onclick="techMode='out';renderTech();renderTechCharts()" class="px-3 py-1.5 rounded-full text-sm font-bold ${o?"bg-slate-900 text-white":"bg-white border text-slate-600"}">🌳 戶外 (${t.n_out||0} 次)</button><button onclick="techMode='in';renderTech();renderTechCharts()" class="px-3 py-1.5 rounded-full text-sm font-bold ${!o?"bg-slate-900 text-white":"bg-white border text-slate-600"}">🏠 室內 (${t.n_in||0} 次)</button></div>
+  </div>
+  ${!o?`<div class="card p-3 text-sm border-l-4 border-amber-400">🏠 室內資料來自跑步機：配速由手錶加速度計估算、無風阻與地形，<b>配速相關的結論僅供參考</b>；心率與步頻仍可信。室內外資料完全分開統計。</div>`:""}
+  ${o?`<div class="grid md:grid-cols-2 gap-3">${(t.insights||[]).map(i=>`<div class="card p-4 border-l-4 ${lvl[i.level][0]}"><div class="font-black">${lvl[i.level][1]} ${esc(i.title)}</div><div class="text-sm text-slate-700 mt-1 leading-relaxed">${esc(i.finding)}</div><div class="text-sm mt-2 p-2 rounded-lg bg-white/70"><b>怎麼做：</b>${esc(i.advice)}</div></div>`).join("")}</div>`:""}
+  <div class="card p-5 overflow-x-auto scrollbar-thin"><div class="font-black mb-2">配速區間 × 步頻 / 步幅 / 心率（中位數）</div>
+    <table class="w-full text-sm"><thead><tr class="text-slate-500 border-b"><th class="text-left py-1">配速區間 (/km)</th><th class="text-right">分段數</th><th class="text-right">步頻 spm</th><th class="text-right">步幅 m</th><th class="text-right">心率 bpm</th><th class="text-right">%HRmax</th><th class="text-left pl-3">教練備註</th></tr></thead><tbody>
+    ${bands.map(b=>`<tr class="border-b border-slate-100"><td class="py-1 font-bold font-mono">${b.band}</td><td class="text-right">${b.n}</td><td class="text-right font-mono ${b.cad&&b.cad<170?"text-rose-600 font-bold":""}">${b.cad??"-"}</td><td class="text-right font-mono">${b.sl??"-"}</td><td class="text-right font-mono">${b.hr??"-"}</td><td class="text-right font-mono">${b.hr_pct??"-"}%</td><td class="text-xs text-slate-500 pl-3">${bandNote(b)}</td></tr>`).join("")}
+    </tbody></table></div>
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="card p-5"><div class="font-black mb-1">步頻 vs 配速</div><div class="text-xs text-slate-500 mb-2">每點 = 一個 1 km 分段；虛線 = 回歸線。理想：越快步頻越高（約 +3～4 spm / km/h）。</div><canvas id="ch-cad" height="200"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-1">步幅 vs 配速</div><div class="text-xs text-slate-500 mb-2">步幅 = 速度 ÷ 步頻。步幅線越陡代表加速主要靠步幅。</div><canvas id="ch-sl" height="200"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-1">心率 vs 配速（有氧效率曲線）</div><div class="text-xs text-slate-500 mb-2">線往右下移動 = 同心率更快。標記 80% / 88% HRmax 對應配速。</div><canvas id="ch-hrv2" height="200"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-1">效率因子 EF 週趨勢（速度 m/min ÷ 心率）</div><div class="text-xs text-slate-500 mb-2">輕鬆跑／長跑的 EF，上升 = 有氧適應。</div><canvas id="ch-ef" height="200"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-1">心率漂移（前後半效率衰退 %）</div><div class="text-xs text-slate-500 mb-2">≥ 40 分鐘的穩態跑；<5% 優、5–8% 可、>8% 代表該配速尚不可持續。</div><canvas id="ch-dec" height="200"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-1">近 28 天心率區間時間分布</div><div class="text-xs text-slate-500 mb-2">80/20：Z1–Z2 ≈ 75–80%，Z4–Z5 ≈ 15–20%，Z3 越少越好。</div><canvas id="ch-z28" height="200"></canvas></div>
+  </div>`;
+}
+function bandNote(b){
+  if(!b.cad) return "";
+  if(b.band.startsWith("<4")||b.band.startsWith("4:0")||b.band.startsWith("4:2")) return b.cad<172? "比賽配速區步頻偏低 → 目標 176–180":"比賽配速區步頻 OK";
+  if(b.band.startsWith("5")||b.band.startsWith(">")) return b.cad<165? "慢跑拖步，維持 168+":"輕鬆跑步頻可接受";
+  return "";
+}
+function renderTechCharts(){
+  const t = D.tech||{}; const o = techMode==="out";
+  const laps = o? (t.laps_out||[]) : (t.laps_in||[]);
+  const reg = o? (t.reg_out||{}) : (t.reg_in||{});
+  const hrmax = D.athlete.hrmax;
+  const typeColor = l => TYPE_COLOR[l.type]||"#64748b";
+  const paceMin = p => p/60;
+  const xs = laps.map(l=>paceMin(l.pace));
+  const xmin = Math.min(...xs, 3.8), xmax = Math.max(...xs, 6.5);
+  const regLine = (r, fy) => r? [{x:xmin, y:fy(1000/(xmin*60))},{x:xmax, y:fy(1000/(xmax*60))}] : [];
+  const scatterOpts = (ytitle, extra={}) => ({responsive:true, plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{label:c=>{const l=c.raw._l; return l? `${l.date} ${TYPE_LABEL[l.type]||""}: ${fmtPace(l.pace)}/km, ${c.parsed.y}`:""+c.parsed.y;}}}}, scales:{x:{type:"linear", reverse:true, title:{display:true,text:"配速 (分/km，越右越快)"}, ticks:{callback:v=>fmtPace(v*60)}, min:xmin-0.1, max:xmax+0.1}, y:{title:{display:true,text:ytitle}, ...extra}}});
+  const byType = key => Object.entries(laps.filter(l=>l[key]!=null).reduce((a,l)=>{(a[l.type]=a[l.type]||[]).push({x:paceMin(l.pace), y:l[key], _l:l}); return a;},{})).map(([ty,pts])=>({label:TYPE_LABEL[ty]||ty, data:pts, backgroundColor:(TYPE_COLOR[ty]||"#64748b")+"99", pointRadius:4}));
+  mkChart("ch-cad",{type:"scatter",data:{datasets:[...byType("cad"), {label:"回歸線", data:regLine(reg.cad_vs_speed, v=>reg.cad_vs_speed.slope*v+reg.cad_vs_speed.intercept), type:"line", borderColor:"#0f172a", borderDash:[6,4], pointRadius:0}, {label:"目標 178", data:[{x:xmin,y:178},{x:xmax,y:178}], type:"line", borderColor:"#22c55e", pointRadius:0, borderWidth:1}]}, options:scatterOpts("步頻 (spm)",{suggestedMin:150, suggestedMax:195})});
+  mkChart("ch-sl",{type:"scatter",data:{datasets:[...byType("sl"), {label:"回歸線", data:regLine(reg.sl_vs_speed, v=>reg.sl_vs_speed.slope*v+reg.sl_vs_speed.intercept), type:"line", borderColor:"#0f172a", borderDash:[6,4], pointRadius:0}]}, options:scatterOpts("步幅 (m)",{suggestedMin:0.8, suggestedMax:1.6})});
+  const hrR = reg.hr_vs_speed;
+  const marks = hrR&&hrR.slope>0? [0.80,0.88].map(p=>{const v=(hrmax*p-hrR.intercept)/hrR.slope; return {label:`${Math.round(p*100)}% HRmax → ${fmtPace(1000/v)}`, data:[{x:paceMin(1000/v), y:hrmax*p}], type:"scatter", pointStyle:"triangle", pointRadius:9, backgroundColor:p===0.8?"#22c55e":"#f97316"};}) : [];
+  mkChart("ch-hrv2",{type:"scatter",data:{datasets:[...byType("hr"), {label:"回歸線", data:regLine(hrR, v=>hrR.slope*v+hrR.intercept), type:"line", borderColor:"#0f172a", borderDash:[6,4], pointRadius:0}, ...marks]}, options:scatterOpts("心率 (bpm)",{suggestedMin:110, suggestedMax:195})});
+  const ef = o? (t.ef_trend_out||[]) : (t.ef_trend_in||[]);
+  mkChart("ch-ef",{type:"line",data:{labels:ef.map(e=>e.week.slice(5)),datasets:[{label:"EF",data:ef.map(e=>e.ef),borderColor:"#0ea5e9",backgroundColor:"#0ea5e933",fill:true,tension:.3}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:i=>`${ef[i.dataIndex].n} 次跑`}}},scales:{y:{title:{display:true,text:"m/min per bpm"}}}}});
+  const dec = (t.decoupling||[]).filter(x=>x.indoor===!o).slice().reverse();
+  mkChart("ch-dec",{type:"bar",data:{labels:dec.map(x=>x.date.slice(5)),datasets:[{label:"漂移 %",data:dec.map(x=>x.drift),backgroundColor:dec.map(x=>x.drift>8?"#f43f5e":x.drift>5?"#f59e0b":"#22c55e")}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{afterLabel:i=>`${TYPE_LABEL[dec[i.dataIndex].type]} ${dec[i.dataIndex].dist} km`}}},scales:{y:{title:{display:true,text:"%"}}}}});
+  const z = t.zone_28d||[0,0,0,0,0];
+  mkChart("ch-z28",{type:"doughnut",data:{labels:["Z1","Z2","Z3","Z4","Z5"],datasets:[{data:z.map(v=>Math.round(v/60)),backgroundColor:["#94a3b8","#22c55e","#f59e0b","#f97316","#ef4444"]}]},options:{plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} 分鐘 (${Math.round(c.raw/Math.max(1,z.reduce((a,b)=>a+b,0)/60)*100)}%)`}}}}});
+}
+
+// ------------------------------------------------------------ pace calculator (all formulas client-side; Daniels/Gilbert)
+const DIST = [["400 m",400],["800 m",800],["1 km",1000],["1600 m / 英里",1609.34],["3 km",3000],["5 km",5000],["10 km",10000],["15 km",15000],["半馬 21.0975 km",21097.5],["全馬 42.195 km",42195],["自訂",0]];
+const vo2At = v => -4.60 + 0.182258*v + 0.000104*v*v;                     // v in m/min
+const pctMax = t => 0.8 + 0.1894393*Math.exp(-0.012778*t) + 0.2989558*Math.exp(-0.1932605*t); // t in min
+const velForVo2 = vo2 => (-0.182258 + Math.sqrt(0.182258*0.182258 + 4*0.000104*(4.6+vo2)))/(2*0.000104);
+const vdotFromRace = (d, s) => { const t=s/60, v=d/t; return vo2At(v)/pctMax(t); };
+const raceTimeFor = (vdot, d) => { let t=d/200; for(let i=0;i<80;i++){ const v=velForVo2(vdot*pctMax(t)); const tn=d/v; if(Math.abs(tn-t)<1e-5){t=tn;break;} t=tn;} return t*60; };
+const paceAtFrac = (vdot, f) => 1000/velForVo2(vdot*f)*60;  // s/km
+function parseHMS(str){ if(!str) return null; const p=str.trim().split(":").map(Number); if(p.some(isNaN)) return null; if(p.length===3) return p[0]*3600+p[1]*60+p[2]; if(p.length===2) return p[0]*60+p[1]; return p[0]; }
+function renderCalc(){
+  $("#tab-calc").innerHTML = `
+  <div class="card p-5">
+    <div class="font-black text-lg">配速計算機</div>
+    <div class="text-xs text-slate-500 mb-3">所有公式都在網頁端即時計算（Daniels/Gilbert VDOT 模型）。輸入「總時間」或「配速」其中一個，另一個會自動算出。</div>
+    <div class="grid md:grid-cols-5 gap-3 items-end">
+      <label class="text-sm"><div class="font-bold mb-1">距離</div><select id="c-dist" class="w-full border rounded-lg p-2" onchange="calcRun()">${DIST.map((d,i)=>`<option value="${d[1]}" ${d[1]===5000?"selected":""}>${d[0]}</option>`).join("")}</select></label>
+      <label class="text-sm"><div class="font-bold mb-1">自訂距離 (m)</div><input id="c-custom" class="w-full border rounded-lg p-2" placeholder="例如 3000" oninput="calcRun()"></label>
+      <label class="text-sm"><div class="font-bold mb-1">總時間 (h:mm:ss 或 mm:ss)</div><input id="c-time" class="w-full border rounded-lg p-2 font-mono" placeholder="19:49" oninput="calcMode='time';calcRun()"></label>
+      <label class="text-sm"><div class="font-bold mb-1">配速 (mm:ss /km)</div><input id="c-pace" class="w-full border rounded-lg p-2 font-mono" placeholder="4:07" oninput="calcMode='pace';calcRun()"></label>
+      <label class="text-sm"><div class="font-bold mb-1">分段表單位</div><select id="c-seg" class="w-full border rounded-lg p-2" onchange="calcRun()"><option value="400">400 m（操場一圈）</option><option value="1000" selected>1 km</option><option value="5000">5 km</option></select></label>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-3 text-xs">${[["半馬 87:00","21097.5","1:27:00"],["半馬 90:00","21097.5","1:30:00"],["10K 40:00","10000","40:00"],["5K 19:49 (10/21 測驗)","5000","19:49"],["400 m @ I 配速","400",""]].map(x=>`<button class="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 font-bold" onclick="calcPreset('${x[1]}','${x[2]}')">${x[0]}</button>`).join("")}</div>
+  </div>
+  <div id="c-out"></div>`;
+}
+let calcMode = "time";
+function calcPreset(d, t){ $("#c-dist").value = d; if(t){ $("#c-time").value = t; $("#c-pace").value=""; calcMode="time"; } else { $("#c-pace").value = D.athlete.paces.I; $("#c-time").value=""; calcMode="pace"; } calcRun(); }
+function calcRun(){
+  const out = $("#c-out"); if(!out) return;
+  let dist = +$("#c-dist").value; if(!dist) dist = +($("#c-custom").value||0); if(!dist){ out.innerHTML=""; return; }
+  let total, pace;
+  if(calcMode==="time"){ total = parseHMS($("#c-time").value); if(!total){ out.innerHTML = `<div class="card p-4 text-sm text-slate-500">請輸入總時間（例如 19:49 或 1:27:00）或配速。</div>`; return; } pace = total/(dist/1000); $("#c-pace").value = fmtPace(pace); }
+  else { pace = parseHMS($("#c-pace").value); if(!pace){ out.innerHTML = `<div class="card p-4 text-sm text-slate-500">請輸入配速（例如 4:07）。</div>`; return; } total = pace*dist/1000; $("#c-time").value = fmtTime(total); }
+  const v_mmin = dist/(total/60);
+  const vdot = vdotFromRace(dist, total);
+  const pct = pctMax(total/60);
+  const vo2cost = vo2At(v_mmin);
+  const lap400 = pace*0.4, lap200 = pace*0.2, lap100 = pace*0.1, mile = pace*1.60934;
+  let seg = +$("#c-seg").value || 1000;
+  if(!(dist>0) || !isFinite(dist) || dist>100000){ out.innerHTML = `<div class="card p-4 text-sm text-rose-600">距離無效。</div>`; return; }
+  while(dist/seg > 300) seg *= 5;  // keep the split table bounded
+  const n = Math.floor(dist/seg + 1e-9), rem = dist - n*seg;
+  const rows = []; let cum=0;
+  for(let i=1;i<=n;i++){ cum += seg; rows.push([cum, pace*seg/1000, pace*cum/1000]); }
+  if(rem>1){ cum += rem; rows.push([cum, pace*rem/1000, pace*cum/1000]); }
+  // negative split suggestion: first 1/3 +2%, middle 0, last 1/3 -2%
+  const neg = rows.map((r,i)=>{ const f=i/rows.length; const adj = f<1/3? 1.02 : f<2/3? 1.0 : 0.98; return r[1]*adj; });
+  let negCum=0; const negRows = neg.map(x=>{negCum+=x; return negCum;});
+  const scale = total/negCum; // normalise to same total
+  const equiv = [["1500 m",1500],["3 km",3000],["5 km",5000],["10 km",10000],["半馬",21097.5],["全馬",42195]].map(e=>[e[0], raceTimeFor(vdot,e[1]), raceTimeFor(vdot,e[1])/(e[1]/1000)]);
+  const tp = {E_slow:paceAtFrac(vdot,0.62), E_fast:paceAtFrac(vdot,0.72), M:paceAtFrac(vdot,0.82), T:paceAtFrac(vdot,0.88), I:paceAtFrac(vdot,1.00), R:paceAtFrac(vdot,1.08)};
+  const vvo2 = 1000/velForVo2(vdot)*60;
+  const hrmax = D.athlete.hrmax;
+  const effortTxt = pct>0.97? "≈ 1500–3000 m 比賽強度（> 97% VO2max）" : pct>0.93? "≈ 5K 比賽強度（I 區以上）" : pct>0.88? "≈ 10K 比賽強度（T～I 之間）" : pct>0.84? "≈ 半馬比賽／閾值強度" : pct>0.78? "≈ 馬拉松配速強度" : "≈ 有氧穩態／輕鬆強度";
+  out.innerHTML = `
+  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+    ${[["總時間",fmtTime(total)],["平均配速",fmtPace(pace)+" /km"],["每英里",fmtPace(mile)+" /mi"],["操場一圈 400 m",fmtPace(lap400)],["200 m / 100 m",fmtPace(lap200)+" / "+Math.round(lap100)+"s"],["速度",(v_mmin*0.06).toFixed(2)+" km/h"]].map(x=>`<div class="card p-3 text-center"><div class="text-[11px] text-slate-500 font-bold">${x[0]}</div><div class="text-xl font-black font-mono">${x[1]}</div></div>`).join("")}
+  </div>
+  <div class="grid lg:grid-cols-3 gap-5 mt-5">
+    <div class="card p-5">
+      <div class="font-black mb-2">生理對應（把這個表現當成比賽成績）</div>
+      <dl class="kv">
+        <dt>VDOT</dt><dd class="font-mono font-bold text-sky-700">${vdot.toFixed(1)}</dd>
+        <dt>佔 VO2max</dt><dd class="font-mono">${Math.round(pct*100)}% <span class="text-xs text-slate-500">${effortTxt}</span></dd>
+        <dt>攝氧成本</dt><dd class="font-mono">${vo2cost.toFixed(1)} ml/kg/min <span class="text-xs text-slate-500">(此速度的氧需求)</span></dd>
+        <dt>vVO2max 配速</dt><dd class="font-mono">${fmtPace(vvo2)} /km <span class="text-xs text-slate-500">(I 配速)</span></dd>
+        <dt>閾值配速 T</dt><dd class="font-mono font-bold text-orange-600">${fmtPace(tp.T)} /km <span class="text-xs text-slate-500">(400 m ${fmtPace(tp.T*0.4)})</span></dd>
+        <dt>馬拉松配速 M</dt><dd class="font-mono">${fmtPace(tp.M)} /km</dd>
+        <dt>輕鬆配速 E</dt><dd class="font-mono">${fmtPace(tp.E_fast)}–${fmtPace(tp.E_slow)} /km</dd>
+        <dt>反覆配速 R</dt><dd class="font-mono">${fmtPace(tp.R)} /km <span class="text-xs text-slate-500">(400 m ${fmtPace(tp.R*0.4)}, 200 m ${Math.round(tp.R*0.2)}s)</span></dd>
+        <dt>間歇配速 I</dt><dd class="font-mono">${fmtPace(tp.I)} /km <span class="text-xs text-slate-500">(400 m ${fmtPace(tp.I*0.4)}, 1000 m ${fmtPace(tp.I)})</span></dd>
+        <dt>參考心率</dt><dd class="text-xs">T：${Math.round(hrmax*0.86)}–${Math.round(hrmax*0.91)} · I：${Math.round(hrmax*0.93)}–${Math.round(hrmax*0.98)} · E：&lt;${Math.round(hrmax*0.80)} bpm（HRmax ${hrmax}）</dd>
+      </dl>
+      <div class="text-xs text-slate-500 mt-2">與你目前的 VDOT ${D.athlete.vdot} 相比：${(vdot-D.athlete.vdot)>=0?"+":""}${(vdot-D.athlete.vdot).toFixed(1)}。</div>
+    </div>
+    <div class="card p-5">
+      <div class="font-black mb-2">同 VDOT 的等值成績</div>
+      <table class="w-full text-sm"><thead><tr class="text-slate-500 border-b"><th class="text-left py-1">距離</th><th class="text-right">時間</th><th class="text-right">配速</th></tr></thead><tbody>
+      ${equiv.map(e=>`<tr class="border-b border-slate-100"><td class="py-1">${e[0]}</td><td class="text-right font-mono font-bold">${fmtTime(e[1])}</td><td class="text-right font-mono">${fmtPace(e[2])}</td></tr>`).join("")}</tbody></table>
+      <div class="text-xs text-slate-500 mt-2">等值成績假設相同的訓練完整度；半馬需要足夠的長跑量才能「兌現」5K 的 VDOT。</div>
+    </div>
+    <div class="card p-5 overflow-x-auto scrollbar-thin">
+      <div class="font-black mb-2">分段配速表（每 ${seg>=1000? seg/1000+" km":seg+" m"}）</div>
+      <table class="w-full text-sm font-mono"><thead><tr class="text-slate-500 border-b"><th class="text-left py-1">累計</th><th class="text-right">均速分段</th><th class="text-right">累計時間</th><th class="text-right text-emerald-700">負分割建議</th><th class="text-right text-emerald-700">累計</th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr class="border-b border-slate-100 ${i%5===4?"bg-slate-50":""}"><td class="py-0.5">${r[0]>=1000? (r[0]/1000).toFixed(r[0]%1000?2:0)+" km":r[0]+" m"}</td><td class="text-right">${fmtTime(r[1])}</td><td class="text-right font-bold">${fmtTime(r[2])}</td><td class="text-right text-emerald-700">${fmtTime(neg[i]*scale)}</td><td class="text-right text-emerald-700">${fmtTime(negRows[i]*scale)}</td></tr>`).join("")}
+      </tbody></table>
+      <div class="text-xs text-slate-500 mt-2">負分割建議：前 1/3 慢 2%、中段均速、後 1/3 快 2%（總時間相同）。比賽日前 3 km 再加上「不要鑽人群」的 3–5 秒餘裕。</div>
+    </div>
+  </div>`;
+}
+
+// ------------------------------------------------------------ coach chat log
+function renderChat(){
+  const log = D.chat_log||[];
+  $("#tab-chat").innerHTML = `
+  <div class="card p-5"><div class="font-black text-lg">教練室 Q&A（Google Chat 討論整理）</div>
+    <div class="text-sm text-slate-600 mt-1">在 Google Chat「🏃 半馬 87 教練室」提問或上傳跑步影片，教練回覆後會把重點整理到這裡（不受半天同步限制，問完即更新）。</div></div>
+  ${log.length? log.map(e=>`<div class="card p-5 stripe" style="border-color:${e.kind==="video"?"#a855f7":"#0ea5e9"}">
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span class="font-bold">${esc(e.ts)}</span>${e.kind==="video"?'<span class="badge bg-violet-100 text-violet-700">🎥 影片分析</span>':'<span class="badge bg-sky-100 text-sky-700">💬 問答</span>'}${(e.tags||[]).map(t=>`<span class="badge bg-slate-100 text-slate-600">#${esc(t)}</span>`).join("")}</div>
+      <div class="font-black mt-1">Q：${esc(e.question)}</div>
+      <div class="text-sm text-slate-700 mt-2 leading-relaxed whitespace-pre-line">${esc(e.answer)}</div>
+      ${e.insights&&e.insights.length?`<div class="mt-3 text-sm bg-amber-50 border border-amber-200 rounded-xl p-3"><b>📌 重點／對課表的影響：</b><ul class="list-disc pl-5 mt-1">${e.insights.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
+    </div>`).join("") : `<div class="card p-6 text-sm text-slate-500">尚無討論紀錄。</div>`}`;
 }
 
 // ------------------------------------------------------------ method
