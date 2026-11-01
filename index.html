@@ -46,6 +46,7 @@
       <button data-tab="plan" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練課表 (8 週)</button>
       <button data-tab="history" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練紀錄 (20)</button>
       <button data-tab="weekly" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">週統計 (8 週)</button>
+      <button data-tab="races" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">賽事 🏁</button>
       <button data-tab="tech" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">技術分析</button>
       <button data-tab="calc" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">配速計算</button>
       <button data-tab="wellness" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">身體狀態</button>
@@ -62,6 +63,7 @@
   <section id="tab-plan" class="tab hidden space-y-6"></section>
   <section id="tab-history" class="tab hidden space-y-6"></section>
   <section id="tab-weekly" class="tab hidden space-y-6"></section>
+  <section id="tab-races" class="tab hidden space-y-6"></section>
   <section id="tab-tech" class="tab hidden space-y-6"></section>
   <section id="tab-calc" class="tab hidden space-y-6"></section>
   <section id="tab-wellness" class="tab hidden space-y-6"></section>
@@ -102,7 +104,7 @@ function renderAll(){
   $("#schedule-note").textContent = D.sync_schedule || "";
   $("#countdown").textContent = `距離比賽 ${D.race.days_left} 天`;
   if(D.notify && D.notify.length){ $("#notify").classList.remove("hidden"); $("#notify").innerHTML = `<div class="card p-4 border-l-4 border-emerald-500 flex items-start gap-3"><div class="text-2xl">🆕</div><div><div class="font-bold">已更新訓練 (${D.generated_at})</div><div class="text-sm text-slate-600">新增 ${D.notify.length} 筆：${D.notify.map(n=>esc(n)).join("、")}。課表已依最新數據重新計算。</div></div></div>`; }
-  renderOverview(); renderPlan(); renderHistory(); renderWeekly(); renderWellness(); renderMethod(); renderTech(); renderCalc(); renderChat();
+  renderOverview(); renderPlan(); renderHistory(); renderWeekly(); renderWellness(); renderMethod(); renderTech(); renderCalc(); renderChat(); renderRaces();
   renderOverviewCharts();
 }
 
@@ -172,7 +174,7 @@ function renderOverviewCharts(){
     options:{plugins:{legend:{position:"bottom"}}, scales:{x:{type:"category", labels:S.map(s=>s.date)}, y:{title:{display:true,text:"VDOT"}}}}});
   const PW = D.plan.weeks;
   const phaseColor = {build:"#3b82f6", absorb:"#94a3b8", specific:"#f97316", test:"#a855f7", peak:"#ef4444", taper:"#22c55e", race:"#f59e0b"};
-  mkChart("ch-period", {type:"bar", data:{labels:PW.map(w=>`W${w.k} ${w.label.split(" ~ ")[0]}`), datasets:[{label:"目標跑量", data:PW.map(w=>w.target_km), backgroundColor:PW.map(w=>phaseColor[w.phase_key]||"#999")},{label:"實際", data:PW.map(w=>w.actual_km||null), type:"line", borderColor:"#0f172a", pointBackgroundColor:"#0f172a"}]},
+  mkChart("ch-period", {type:"bar", data:{labels:PW.map(w=>`W${w.k} ${w.label.split(" ~ ")[0]}${w.phase.startsWith("賽週")?" 🏁":""}`), datasets:[{label:"目標跑量", data:PW.map(w=>w.target_km), backgroundColor:PW.map(w=>phaseColor[w.phase_key]||"#999")},{label:"實際", data:PW.map(w=>w.actual_km||null), type:"line", borderColor:"#0f172a", pointBackgroundColor:"#0f172a"}]},
     options:{plugins:{legend:{display:false}, tooltip:{callbacks:{afterLabel:c=>PW[c.dataIndex].phase}}}, scales:{y:{title:{display:true,text:"km / 週"}}}}});
 }
 
@@ -525,6 +527,43 @@ function calcRun(){
       <div class="text-xs text-slate-500 mt-2">負分割建議：前 1/3 慢 2%、中段均速、後 1/3 快 2%（總時間相同）。比賽日前 3 km 再加上「不要鑽人群」的 3–5 秒餘裕。</div>
     </div>
   </div>`;
+}
+
+// ------------------------------------------------------------ races
+function renderRaces(){
+  const R = D.races||[]; const fut = R.filter(r=>!r.is_past), past = R.filter(r=>r.is_past).slice().reverse();
+  const prio = p => ({A:"bg-orange-500 text-white",B:"bg-sky-600 text-white",C:"bg-slate-200 text-slate-700"})[p]||"bg-slate-200";
+  const para = t => esc(t||"").split("\n").filter(x=>x.trim()).map(x=>`<p class="mb-1.5">${x}</p>`).join("");
+  $("#tab-races").innerHTML = `
+  <div class="card p-5"><div class="font-black text-lg">賽事總覽</div><div class="text-sm text-slate-600 mt-1">終極目標：2027/01/10 東京新年半馬（A 1:27:00 / B 1:30:00）。其他賽事定位為 B/C 級：盡力，但以不影響目標賽的進步為前提；課表已依賽期自動調整（賽週減量、賽後恢復週）。</div>
+    <div class="mt-3 flex flex-wrap gap-2">${R.map(r=>`<span class="badge ${r.is_past?"bg-slate-100 text-slate-600":prio(r.priority)}">${r.date.slice(5)} ${esc(r.name.split("（")[0].split(" — ")[0])}${r.is_past&&r.result_time?" · "+r.result_time:""}</span>`).join("")}</div></div>
+  <div class="font-black text-lg">🔜 未來賽事：目標與策略</div>
+  ${fut.map(r=>`<div class="card p-5 stripe" style="border-color:${r.priority==="A"?"#f97316":"#0ea5e9"}">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div><div class="text-xs text-slate-500 font-bold">${r.date} ${r.weekday} · <span class="badge ${prio(r.priority)}">${r.priority} 級</span></div><div class="font-black text-xl">${esc(r.name)}</div><div class="text-sm text-slate-600">${r.distance_km} km · 距今 ${r.days_left} 天${r.weeks_to_goal>0?` · 距東京 ${r.weeks_to_goal} 週`:""}</div></div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-orange-50 rounded-xl p-2"><div class="text-[10px] text-slate-500">目標 A</div><div class="font-black font-mono">${r.goal_a||"-"}</div><div class="text-[11px] font-mono text-slate-600">${r.pace_a||"-"}/km · 400m ${r.pace_a_400||"-"}</div></div>
+        <div class="bg-sky-50 rounded-xl p-2"><div class="text-[10px] text-slate-500">目標 B</div><div class="font-black font-mono">${r.goal_b||"-"}</div><div class="text-[11px] font-mono text-slate-600">${r.pace_b||"-"}/km · 400m ${r.pace_b_400||"-"}</div></div>
+        <div class="bg-slate-50 rounded-xl p-2"><div class="text-[10px] text-slate-500">目前 VDOT ${D.athlete.vdot} 推估</div><div class="font-black font-mono">${r.pred_time||"-"}</div><div class="text-[11px] font-mono text-slate-600">${r.pred_pace||"-"}/km</div></div>
+      </div>
+    </div>
+    <div class="mt-3 text-sm text-slate-700 leading-relaxed"><div class="font-bold text-slate-800 mb-1">🎯 比賽策略</div>${para(r.strategy)}</div>
+    ${r.plan_effect?`<div class="mt-2 text-sm bg-amber-50 border border-amber-200 rounded-xl p-3"><b>📅 對課表的影響：</b>${esc(r.plan_effect)}</div>`:""}
+  </div>`).join("")}
+  <div class="font-black text-lg">📜 過去賽事：成績與檢討</div>
+  ${past.map(r=>`<div class="card p-5 stripe" style="border-color:#94a3b8">
+    <div class="flex flex-wrap items-start justify-between gap-3">
+      <div><div class="text-xs text-slate-500 font-bold">${r.date} ${r.weekday} · <span class="badge ${prio(r.priority)}">${r.priority} 級</span></div><div class="font-black text-xl">${esc(r.name)}</div></div>
+      <div class="flex flex-wrap gap-2 text-center">
+        ${[["成績",r.result_time],["距離",r.result_distance_km?r.result_distance_km+" km":null],["配速",r.result_pace?r.result_pace+"/km":null],["平均心率",r.result_hr?r.result_hr+" bpm":null],["VDOT",r.vdot],["等值半馬",r.equiv_hm]].filter(x=>x[1]).map(x=>`<div class="bg-slate-50 rounded-xl px-3 py-2"><div class="text-[10px] text-slate-500">${x[0]}</div><div class="font-black font-mono">${x[1]}</div></div>`).join("")}
+      </div>
+    </div>
+    ${(r.legs||[]).length>1?`<div class="mt-2 text-xs text-slate-600">${r.legs.map((l,i)=>`第 ${i+1} 棒 ${esc(l.location||"")} ${l.start_local?l.start_local.slice(11):""}：${l.distance_km} km · ${l.pace}/km · ${l.avg_hr||"-"} bpm`).join(" ｜ ")}</div>`:""}
+    ${(r.legs||[]).length===1?`<div class="mt-2 text-xs text-slate-600 flex flex-wrap gap-x-4">${[["起跑",r.legs[0].start_local],["步頻",r.legs[0].cadence?Math.round(r.legs[0].cadence)+" spm":null],["步幅",r.legs[0].stride_m?r.legs[0].stride_m+" m":null],["最快 1 km",r.legs[0].best_km],["爬升",r.legs[0].elev_gain!=null?"+"+Math.round(r.legs[0].elev_gain)+" m":null],["訓練負荷",r.legs[0].training_load],["TE",r.legs[0].aerobic_te?r.legs[0].aerobic_te+"/"+r.legs[0].anaerobic_te:null]].filter(x=>x[1]).map(x=>`<span><span class="text-slate-400">${x[0]}</span> ${x[1]}</span>`).join("")}</div>`:""}
+    <div class="mt-3 text-sm text-slate-700 leading-relaxed"><div class="font-bold text-slate-800 mb-1">🧑‍🏫 教練檢討</div>${para(r.review)}</div>
+    ${(r.lessons||[]).length?`<div class="mt-2 text-sm bg-sky-50 border border-sky-200 rounded-xl p-3"><b>📌 帶走的教訓：</b><ul class="list-disc pl-5 mt-1">${r.lessons.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
+    ${(r.legs||[]).some(l=>D.workouts.find(w=>w.labelId===l.labelId))?`<button onclick="openWorkout('${r.legs.find(l=>D.workouts.find(w=>w.labelId===l.labelId)).labelId}')" class="mt-3 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">📈 路線 / 圖表</button>`:""}
+  </div>`).join("")}`;
 }
 
 // ------------------------------------------------------------ coach chat log
