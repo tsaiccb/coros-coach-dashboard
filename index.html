@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>半馬 87 分計畫 · AI 教練儀表板</title>
+<title>Louis Tsai - Run Training 2026-2027</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
@@ -32,8 +32,8 @@
   <div class="max-w-7xl mx-auto px-4 py-5">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <div class="text-xs tracking-widest text-orange-300 font-bold">HALF MARATHON · 2027/01/10</div>
-        <h1 class="text-2xl md:text-3xl font-black">半馬 87 分計畫 <span class="text-slate-400 font-medium text-lg">AI 科學化教練儀表板</span></h1>
+        <div class="text-xs tracking-widest text-orange-300 font-bold" id="goal-label">RUN TRAINING</div>
+        <h1 class="text-2xl md:text-3xl font-black">Louis Tsai <span class="text-orange-400">·</span> Run Training 2026-2027 <span class="text-slate-400 font-medium text-lg block md:inline">AI 科學化教練儀表板</span></h1>
       </div>
       <div class="text-right">
         <div id="countdown" class="text-3xl font-black text-orange-400">—</div>
@@ -75,7 +75,7 @@
   <div class="max-w-5xl mx-auto my-6 bg-white rounded-2xl shadow-2xl p-5 md:p-7 fade-in" id="modal-body"></div>
 </div>
 
-<footer class="text-center text-xs text-slate-400 py-8">資料來源：COROS (MCP) · 配速系統：Daniels VDOT · 訓練哲學：Hansons / 挪威式閾值 / 80-20 · 由 AI 教練自動生成與維護</footer>
+<footer class="text-center text-xs text-slate-400 py-8">Louis Tsai · Run Training 2026-2027 · 資料來源：COROS (MCP) · 配速系統：Daniels VDOT · 訓練哲學：Hansons / 挪威式閾值 / 80-20 · 由 AI 教練自動生成與維護</footer>
 
 <script>
 const $ = (s, el=document) => el.querySelector(s);
@@ -100,6 +100,7 @@ fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(d=>{ 
 
 function renderAll(){
   $("#updated").textContent = D.generated_at;
+  $("#goal-label").textContent = `目前目標賽事 · ${D.race.name} ${D.race.date.replace(/-/g,"/")} · A ${D.race.goal_A} / B ${D.race.goal_B}`;
   $("#synced").textContent = D.last_sync_at || D.generated_at;
   $("#schedule-note").textContent = D.sync_schedule || "";
   $("#countdown").textContent = `距離比賽 ${D.race.days_left} 天`;
