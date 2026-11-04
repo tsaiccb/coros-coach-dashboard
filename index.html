@@ -48,9 +48,10 @@
       <button data-tab="weekly" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">週統計 (8 週)</button>
       <button data-tab="races" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">賽事 🏁</button>
       <button data-tab="tech" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">技術分析</button>
+      <button data-tab="form" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">🎥 跑姿分析 🔒</button>
       <button data-tab="calc" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">配速計算</button>
       <button data-tab="wellness" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">身體狀態</button>
-      <button data-tab="chat" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">教練室 Q&A</button>
+      <button data-tab="chat" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">教練室 Q&A 🔒</button>
       <button data-tab="method" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練方法論</button>
     </nav>
   </div>
@@ -68,6 +69,7 @@
   <section id="tab-calc" class="tab hidden space-y-6"></section>
   <section id="tab-wellness" class="tab hidden space-y-6"></section>
   <section id="tab-chat" class="tab hidden space-y-6"></section>
+  <section id="tab-form" class="tab hidden space-y-6"></section>
   <section id="tab-method" class="tab hidden space-y-6"></section>
 </main>
 
@@ -77,6 +79,7 @@
 
 <footer class="text-center text-xs text-slate-400 py-8">Louis Tsai · Run Training 2026-2027 · 資料來源：COROS (MCP) · 配速系統：Daniels VDOT · 訓練哲學：Hansons / 挪威式閾值 / 80-20 · 由 AI 教練自動生成與維護</footer>
 
+<script src="form.js?v=20261105"></script>
 <script>
 const $ = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
@@ -93,10 +96,10 @@ const pct = (a,b) => b? Math.round(a/b*100):0;
 function mkChart(id, cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el) return; charts[id]=new Chart(el, cfg); }
 
 // ------------------------------------------------------------ tabs
-$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); });
+$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); if(b.dataset.tab==="form" && !$("#tab-form").innerHTML) renderFormTab(); });
 
 // ------------------------------------------------------------ load
-fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(d=>{ D=d; renderAll(); }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
+fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(async d=>{ D=d; await autoUnlock(); renderAll(); }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
 
 function renderAll(){
   $("#updated").textContent = D.generated_at;
@@ -106,6 +109,7 @@ function renderAll(){
   $("#countdown").textContent = `距離比賽 ${D.race.days_left} 天`;
   if(D.notify && D.notify.length){ $("#notify").classList.remove("hidden"); $("#notify").innerHTML = `<div class="card p-4 border-l-4 border-emerald-500 flex items-start gap-3"><div class="text-2xl">🆕</div><div><div class="font-bold">已更新訓練 (${D.generated_at})</div><div class="text-sm text-slate-600">新增 ${D.notify.length} 筆：${D.notify.map(n=>esc(n)).join("、")}。課表已依最新數據重新計算。</div></div></div>`; }
   renderOverview(); renderPlan(); renderHistory(); renderWeekly(); renderWellness(); renderMethod(); renderTech(); renderCalc(); renderChat(); renderRaces();
+  renderLockState(); renderFormTab();
   renderOverviewCharts();
 }
 
@@ -621,8 +625,47 @@ function renderRaces(){
   </div>`).join("")}`;
 }
 
+// ------------------------------------------------------------ password gate (教練室 Q&A + 跑姿分析)
+// data.json carries these sections only as an AES-256-GCM blob (key = PBKDF2-SHA256 of the password); decrypted in-browser.
+const LOCKED_TABS = ["chat","form"];
+let UNLOCKED = false;
+const isLocked = () => !!(D && D.locked) && !UNLOCKED;
+async function unlockWith(pw){
+  const L = D.locked; if(!L) return;
+  const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2", salt:b64(L.salt), iterations:L.iter, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(L.iv)}, key, b64(L.ct));
+  const obj = JSON.parse(new TextDecoder().decode(pt));
+  D.chat_log = obj.chat_log || []; D.form_reviews = obj.form_reviews || [];
+}
+async function autoUnlock(){
+  if(!D.locked){ UNLOCKED = true; return; }
+  const pw = sessionStorage.getItem("hm_key") || localStorage.getItem("hm_key");
+  if(!pw) return;
+  try{ await unlockWith(pw); UNLOCKED = true; }catch(e){ sessionStorage.removeItem("hm_key"); localStorage.removeItem("hm_key"); }
+}
+async function tryUnlock(pw, remember){
+  try{ await unlockWith(pw); }catch(e){ return false; }
+  UNLOCKED = true; (remember ? localStorage : sessionStorage).setItem("hm_key", pw); if(!remember) localStorage.removeItem("hm_key");
+  renderLockState(); renderChat(); renderFormTab(); return true;
+}
+function lockAgain(){ UNLOCKED = false; sessionStorage.removeItem("hm_key"); localStorage.removeItem("hm_key"); if(D){ D.chat_log = []; D.form_reviews = []; } renderLockState(); renderChat(); renderFormTab(); }
+function renderLockState(){ $$("#tabs button").forEach(b => { if(LOCKED_TABS.includes(b.dataset.tab)) b.textContent = b.textContent.replace(/[🔒🔓]/gu, "").trim() + (D && D.locked ? (UNLOCKED ? " 🔓" : " 🔒") : ""); }); }
+function gateHTML(tab){
+  return `<div class="card p-6 max-w-md mx-auto text-center fade-in"><div class="text-4xl">🔒</div><div class="font-black text-lg mt-2">${tab==="chat" ? "教練室 Q&amp;A" : "跑姿分析"} 需要密碼</div><div class="text-sm text-slate-600 mt-1">這兩個分頁的內容在網站上只以加密形式存在，輸入密碼後在你的瀏覽器內解密。</div>
+    <form class="mt-4 flex flex-col gap-2 items-center" onsubmit="event.preventDefault(); submitGate(this)"><input name="pw" type="password" inputmode="numeric" autocomplete="current-password" placeholder="密碼" class="border rounded-xl px-4 py-2 text-center text-lg w-56" autofocus><label class="text-xs text-slate-500"><input type="checkbox" name="remember" checked> 記住這台裝置</label><button class="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold">解鎖</button><div class="text-xs text-rose-600 gate-err"></div></form></div>`;
+}
+async function submitGate(form){ if(!(window.crypto && crypto.subtle)){ form.querySelector(".gate-err").textContent = "此瀏覽器無法解密（需要 https 與 WebCrypto）"; return; } const ok = await tryUnlock(form.pw.value.trim(), form.remember.checked); if(!ok){ form.querySelector(".gate-err").textContent = "密碼錯誤"; form.pw.value = ""; form.pw.focus(); } }
+function renderFormTab(){
+  const el = $("#tab-form"); if(!el) return;
+  if(isLocked()){ el.innerHTML = gateHTML("form"); return; }
+  if(typeof FORM !== "undefined" && FORM.renderFormTab) FORM.renderFormTab(); else el.innerHTML = '<div class="card p-6 text-rose-600">跑姿分析模組 (form.js) 載入失敗，請重新整理。</div>';
+}
+
 // ------------------------------------------------------------ coach chat log
 function renderChat(){
+  if(isLocked()){ $("#tab-chat").innerHTML = gateHTML("chat"); return; }
   const log = D.chat_log||[];
   $("#tab-chat").innerHTML = `
   <div class="card p-5"><div class="font-black text-lg">教練室 Q&A（Google Chat 討論整理）</div>
