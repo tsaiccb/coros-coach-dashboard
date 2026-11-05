@@ -94,6 +94,23 @@ const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">
 const pct = (a,b) => b? Math.round(a/b*100):0;
 
 function mkChart(id, cfg){ if(charts[id]) charts[id].destroy(); const el=document.getElementById(id); if(!el) return; charts[id]=new Chart(el, cfg); }
+// Draws work/rest bands + boundary lines (auto laps) on a category-axis line chart.
+const segPlugin = { id:"segs", afterDatasetsDraw(chart, args, opts){
+  const segs = (opts && opts.segs) || []; if(!segs.length) return;
+  const {ctx, chartArea:{top,bottom}, scales:{x}} = chart; ctx.save();
+  for(const sg of segs){
+    const x0 = x.getPixelForValue(sg.i0), x1 = x.getPixelForValue(sg.i1); if(!(isFinite(x0)&&isFinite(x1))) continue;
+    if(sg.kind==="work"){ ctx.fillStyle="rgba(249,115,22,0.10)"; ctx.fillRect(x0, top, Math.max(1,x1-x0), bottom-top); }
+    else if(sg.kind==="rest"){ ctx.fillStyle="rgba(100,116,139,0.10)"; ctx.fillRect(x0, top, Math.max(1,x1-x0), bottom-top); }
+    ctx.strokeStyle = sg.kind==="work" ? "rgba(234,88,12,0.7)" : "rgba(100,116,139,0.5)"; ctx.lineWidth = 1; ctx.setLineDash(sg.kind==="work"?[]:[3,3]);
+    ctx.beginPath(); ctx.moveTo(x0, top); ctx.lineTo(x0, bottom); ctx.stroke();
+    if(sg.kind==="work" || (sg.kind==="rest" && x1-x0>22) || sg.kind==="warmup" || sg.kind==="cooldown"){
+      ctx.fillStyle = sg.kind==="work" ? "#c2410c" : "#475569"; ctx.font = "bold 10px sans-serif"; ctx.textAlign="left";
+      ctx.fillText(sg.short, x0+2, top+10);
+    }
+  }
+  ctx.setLineDash([]); ctx.restore();
+}};
 
 // ------------------------------------------------------------ tabs
 $$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); if(b.dataset.tab==="form" && !$("#tab-form").innerHTML) renderFormTab(); });
@@ -345,6 +362,14 @@ function openWorkout(id){
     ${st && st.series && st.series.length>5 ? `
     <div class="mt-4 card p-3"><div class="flex items-center justify-between"><div class="text-sm font-bold">配速 / 心率 / 步頻 / 步幅（依距離）</div><div class="text-xs text-slate-500">點擊圖例可隱藏/顯示</div></div><canvas id="ch-stream" height="120"></canvas></div>
     <div class="mt-3 card p-3"><div class="text-sm font-bold">海拔</div><canvas id="ch-alt" height="50"></canvas></div>` : '<div class="mt-4 text-sm text-slate-500">此筆紀錄無逐秒資料（FIT）。</div>'}
+    ${(w.auto_laps&&w.auto_laps.length)? (()=>{ const A=w.auto_laps, works=A.filter(a=>a.kind==="work"), rests=A.filter(a=>a.kind==="rest");
+      const avg=(arr,k)=>{const v=arr.map(a=>a[k]).filter(x=>x!=null); return v.length? v.reduce((p,c)=>p+c,0)/v.length:null;};
+      const kindBadge = a => a.kind==="work"? '<span class="badge bg-orange-100 text-orange-700">組</span>' : a.kind==="rest"? `<span class="badge bg-slate-100 text-slate-600">休息 · ${a.mode||""}</span>` : `<span class="badge bg-sky-50 text-sky-700">${a.kind==="warmup"?"熱身":"收操"}</span>`;
+      return `<div class="mt-4 card p-3 overflow-x-auto scrollbar-thin"><div class="flex flex-wrap items-center justify-between gap-2"><div class="text-sm font-bold">自動分段 (Auto laps) — 由逐秒資料偵測</div>
+        <div class="text-xs text-slate-600">${works.length} 組 · 工作段平均 ${avg(works,"dist_m")?Math.round(avg(works,"dist_m"))+" m":""} / ${fmtTime(Math.round(avg(works,"moving_s")||0))} / ${fmtPace(avg(works,"pace"))}/km · 休息平均 ${rests.length?fmtTime(Math.round(avg(rests,"elapsed_s")||0)):"-"}（${rests.length? (rests.filter(r=>r.mode==="跑休").length>rests.length/2?"多為跑休":"多為停休/走動"):""}）</div></div>
+        <table class="w-full text-xs font-mono mt-2"><thead><tr class="text-slate-500 border-b"><th class="text-left py-1">標記</th><th class="text-left">類型</th><th class="text-right">距離</th><th class="text-right">時間</th><th class="text-right">配速</th><th class="text-right">平均心率</th><th class="text-right">最高心率</th><th class="text-right">步頻</th><th class="text-right">起 → 迄</th></tr></thead><tbody>
+        ${A.map(a=>`<tr class="border-b border-slate-100 ${a.kind==="work"?"bg-orange-50/60":a.kind==="rest"?"":"bg-sky-50/40"}"><td class="py-0.5 font-bold ${a.kind==="work"?"text-orange-700":"text-slate-600"}">${esc(a.label)}</td><td>${kindBadge(a)}</td><td class="text-right">${a.dist_m} m</td><td class="text-right">${fmtTime(a.kind==="rest"?a.elapsed_s:a.moving_s)}${a.kind==="work"&&a.elapsed_s>a.moving_s+3?` <span class="text-slate-400">(${fmtTime(a.elapsed_s)})</span>`:""}</td><td class="text-right font-bold">${a.pace?fmtPace(a.pace):"-"}</td><td class="text-right">${a.avg_hr??"-"}</td><td class="text-right">${a.max_hr??"-"}</td><td class="text-right">${a.cad??"-"}</td><td class="text-right text-slate-500">${fmtTime(a.t0)} → ${fmtTime(a.t1)}</td></tr>`).join("")}
+        </tbody></table><div class="text-[11px] text-slate-500 mt-1">「時間」工作段為移動時間（括號為含暫停的經過時間）；休息段為經過時間。判定：連續快於閾值配速 +6 秒的區段 = 一組；其間的慢跑/走路/停止 = 休息（跑休 = 休息期間持續移動且距離 > 60 m）。圖表上橘色帶 = 組、灰色帶 = 休息。</div></div>`; })() : ""}
     ${laps.length? `<div class="mt-4 card p-3 overflow-x-auto scrollbar-thin"><div class="text-sm font-bold mb-2">分段 (Laps)</div><table class="w-full text-xs font-mono"><thead><tr class="text-slate-500 border-b"><th class="text-left py-1">#</th><th class="text-right">距離</th><th class="text-right">時間</th><th class="text-right">配速</th><th class="text-right">平均心率</th><th class="text-right">最高心率</th><th class="text-right">步頻</th><th class="text-right">步幅</th><th class="text-right">爬升</th></tr></thead><tbody>
       ${laps.map(l=>{const fast = l.pace && l.pace < (w.pace_s||999)-15; return `<tr class="border-b border-slate-100 ${fast?"bg-orange-50":""}"><td class="py-1">${l.i}</td><td class="text-right">${l.dist_m>=950?(l.dist_m/1000).toFixed(2)+" km":l.dist_m+" m"}</td><td class="text-right">${fmtTime(l.time_s)}</td><td class="text-right font-bold">${fmtPace(l.pace)}</td><td class="text-right">${l.avg_hr||"-"}</td><td class="text-right">${l.max_hr||"-"}</td><td class="text-right">${l.cad?Math.round(l.cad):"-"}</td><td class="text-right">${l.sl?(l.sl/1000).toFixed(2):"-"}</td><td class="text-right">${l.asc||0}</td></tr>`}).join("")}</tbody></table></div>`:""}`;
   $("#modal").classList.remove("hidden"); document.body.style.overflow="hidden";
@@ -361,12 +386,13 @@ function openWorkout(id){
     if(st && st.series && st.series.length>5){
       const S = st.series; const xs = S.map(p=> p.d!=null? +(p.d/1000).toFixed(2) : +(p.t/60).toFixed(1));
       const useDist = S.some(p=>p.d!=null && p.d>0);
-      mkChart("ch-stream", {type:"line", data:{labels:xs, datasets:[
+      const segs = (w.auto_laps||[]).map(a=>{ const i0 = Math.max(0, S.findIndex(p=>(p.t||0)>=a.t0)); let i1 = S.findIndex(p=>(p.t||0)>=a.t1); if(i1<0) i1=S.length-1; return {kind:a.kind, i0, i1, short: a.kind==="work"? String(a.n) : a.kind==="rest"? "休" : (a.kind==="warmup"?"熱身":"收操")}; });
+      mkChart("ch-stream", {type:"line", plugins:[segPlugin], data:{labels:xs, datasets:[
         {label:"配速 (/km)", data:S.map(p=>p.pace? p.pace/60:null), borderColor:"#0ea5e9", backgroundColor:"#0ea5e9", yAxisID:"yp", pointRadius:0, borderWidth:2, tension:.25, spanGaps:true},
         {label:"心率 (bpm)", data:S.map(p=>p.hr), borderColor:"#ef4444", backgroundColor:"#ef4444", yAxisID:"yh", pointRadius:0, borderWidth:2, tension:.25, spanGaps:true},
         {label:"步頻 (spm)", data:S.map(p=>p.cad), borderColor:"#22c55e", backgroundColor:"#22c55e", yAxisID:"yc", pointRadius:0, borderWidth:1.5, tension:.25, spanGaps:true, hidden:false},
         {label:"步幅 (m)", data:S.map(p=>p.sl? p.sl/1000:null), borderColor:"#a855f7", backgroundColor:"#a855f7", yAxisID:"ys", pointRadius:0, borderWidth:1.5, tension:.25, spanGaps:true, hidden:true}]},
-        options:{responsive:true, interaction:{mode:"index", intersect:false}, plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{title:i=> (useDist? i[0].label+" km":i[0].label+" min"), label:c=> c.dataset.label.startsWith("配速")? "配速 "+fmtPace(c.raw*60)+"/km": c.dataset.label+" "+(c.raw==null?"-":(+c.raw).toFixed(c.dataset.label.startsWith("步幅")?2:0))}}},
+        options:{responsive:true, interaction:{mode:"index", intersect:false}, plugins:{segs:{segs}, legend:{position:"bottom"}, tooltip:{callbacks:{title:i=> (useDist? i[0].label+" km":i[0].label+" min") + (segs.length? (()=>{const k=i[0].dataIndex; const sg=segs.find(g=>k>=g.i0&&k<g.i1); return sg? " · "+(sg.kind==="work"?"第"+sg.short+"組":sg.kind==="rest"?"休息":sg.short):"";})():""), label:c=> c.dataset.label.startsWith("配速")? "配速 "+fmtPace(c.raw*60)+"/km": c.dataset.label+" "+(c.raw==null?"-":(+c.raw).toFixed(c.dataset.label.startsWith("步幅")?2:0))}}},
           scales:{x:{title:{display:true,text:useDist?"距離 (km)":"時間 (分)"}, ticks:{maxTicksLimit:12}},
             yp:{position:"left", reverse:true, ticks:{callback:v=>fmtPace(v*60)}, title:{display:true,text:"配速"}, suggestedMin:3.2, suggestedMax:7.5},
             yh:{position:"right", title:{display:true,text:"bpm"}, grid:{drawOnChartArea:false}, suggestedMin:90, suggestedMax:200},
