@@ -120,7 +120,7 @@ const segPlugin = { id:"segs", afterDatasetsDraw(chart, args, opts){
 }};
 
 // ------------------------------------------------------------ tabs
-$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="history") loadArchive(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); if(b.dataset.tab==="form" && !$("#tab-form").innerHTML) renderFormTab(); });
+$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="history") loadArchive(); if(b.dataset.tab==="chat") askLoad(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); if(b.dataset.tab==="form" && !$("#tab-form").innerHTML) renderFormTab(); });
 
 // ------------------------------------------------------------ load
 fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(async d=>{ D=d; await autoUnlock(); renderAll(); if(typeof location!=="undefined" && location.hash){ const tb = $$("#tabs button").find(x=>x.dataset.tab===location.hash.slice(1)); if(tb && tb.onclick) tb.onclick(); } }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
@@ -809,7 +809,7 @@ async function unlockWith(pw){
   const key = await crypto.subtle.deriveKey({name:"PBKDF2", salt:b64(L.salt), iterations:L.iter, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["decrypt"]);
   const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:b64(L.iv)}, key, b64(L.ct));
   const obj = JSON.parse(new TextDecoder().decode(pt));
-  D.chat_log = obj.chat_log || []; D.form_reviews = obj.form_reviews || [];
+  D.chat_log = obj.chat_log || []; D.form_reviews = obj.form_reviews || []; D.ask = obj.ask || null;
 }
 async function autoUnlock(){
   if(!D.locked){ UNLOCKED = true; return; }
@@ -822,7 +822,7 @@ async function tryUnlock(pw, remember){
   UNLOCKED = true; (remember ? localStorage : sessionStorage).setItem("hm_key", pw); if(!remember) localStorage.removeItem("hm_key");
   renderLockState(); renderChat(); renderFormTab(); return true;
 }
-function lockAgain(){ UNLOCKED = false; sessionStorage.removeItem("hm_key"); localStorage.removeItem("hm_key"); if(D){ D.chat_log = []; D.form_reviews = []; } renderLockState(); renderChat(); renderFormTab(); }
+function lockAgain(){ UNLOCKED = false; sessionStorage.removeItem("hm_key"); localStorage.removeItem("hm_key"); if(D){ D.chat_log = []; D.form_reviews = []; D.ask = null; } clearTimeout(ASK.timer); ASK.threads = []; ASK.comments = {}; renderLockState(); renderChat(); renderFormTab(); }
 function renderLockState(){ $$("#tabs button").forEach(b => { if(LOCKED_TABS.includes(b.dataset.tab)) b.textContent = b.textContent.replace(/[🔒🔓]/gu, "").trim() + (D && D.locked ? (UNLOCKED ? " 🔓" : " 🔒") : ""); }); }
 function gateHTML(tab){
   return `<div class="card p-6 max-w-md mx-auto text-center fade-in"><div class="text-4xl">🔒</div><div class="font-black text-lg mt-2">${tab==="chat" ? "教練室 Q&amp;A" : "跑姿分析"} 需要密碼</div><div class="text-sm text-slate-600 mt-1">這兩個分頁的內容在網站上只以加密形式存在，輸入密碼後在你的瀏覽器內解密。</div>
@@ -835,19 +835,78 @@ function renderFormTab(){
   if(typeof FORM !== "undefined" && FORM.renderFormTab) FORM.renderFormTab(); else el.innerHTML = '<div class="card p-6 text-rose-600">跑姿分析模組 (form.js) 載入失敗，請重新整理。</div>';
 }
 
+// ------------------------------------------------------------ web ask box (private GitHub inbox; token lives only inside the password-locked blob)
+// One issue per question; the coach answers with a robot-prefixed comment and closes the issue. Open issue = waiting for the coach.
+const ASK = {threads:[], comments:{}, loading:false, sending:false, err:null, note:"", timer:null, lastLoad:0};
+const askCfg = () => (D && D.ask && D.ask.token && D.ask.repo) ? D.ask : null;
+const chatTabOpen = () => { const t = $("#tab-chat"); return !!t && !t.classList.contains("hidden"); };
+async function askApi(path, opt){
+  const c = askCfg(); if(!c) throw new Error("尚未啟用");
+  const o = Object.assign({cache:"no-store"}, opt||{}); o.headers = Object.assign({Authorization:"Bearer "+c.token, Accept:"application/vnd.github+json"}, (opt && opt.headers)||{});
+  const r = await fetch("https://api.github.com/repos/"+c.repo+path, o);
+  if(!r.ok) throw new Error(r.status===401 ? "金鑰失效 (401)" : r.status===403 ? "GitHub 暫時拒絕 (403)" : "GitHub "+r.status);
+  return r.json();
+}
+async function askLoad(){
+  if(!askCfg() || ASK.loading) return; ASK.loading = true;
+  try{
+    const issues = (await askApi("/issues?state=all&sort=created&direction=desc&per_page=12")).filter(i=>!i.pull_request);
+    for(const it of issues){ const c = ASK.comments[it.number]; if(it.comments > 0 && !(c && c.u === it.updated_at)) ASK.comments[it.number] = {u:it.updated_at, list: await askApi("/issues/"+it.number+"/comments?per_page=50")}; }
+    const fresh = ASK.threads.filter(t=> t.state==="open" && !issues.some(i=>i.number===t.number) && Date.now() - new Date(t.created_at).getTime() < 90000); // GitHub's list lags a few seconds behind a new issue
+    ASK.threads = fresh.concat(issues); ASK.err = null;
+  }catch(e){ ASK.err = "讀取失敗：" + (e.message||e); }
+  ASK.loading = false; ASK.lastLoad = Date.now(); renderAsk(); askSchedule();
+}
+function askSchedule(){ clearTimeout(ASK.timer); ASK.timer = null; if(askCfg() && chatTabOpen() && ASK.threads.some(t=>t.state==="open")) ASK.timer = setTimeout(askLoad, 15000); }
+async function askSend(){
+  const ta = $("#ask-text"); if(!ta || ASK.sending) return; const text = (ta.value||"").trim(); if(!text) return;
+  if(text.length > 4000){ ASK.err = "問題太長（上限 4000 字），請分段送出"; renderAsk(); return; }
+  ASK.sending = true; ASK.err = null; ASK.note = ""; renderAsk();
+  try{
+    const it = await askApi("/issues", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({title: "Q: " + text.replace(/\s+/g," ").slice(0,60), body: text})});
+    ASK.threads = [it].concat(ASK.threads.filter(t=>t.number!==it.number)); ta.value = ""; ASK.note = "已送出，教練回覆後會自動顯示在下方（通常 1–3 分鐘）。";
+  }catch(e){ ASK.err = "送出失敗：" + (e.message||e) + "。請稍後再試，或改用 Google Chat 教練室。"; }
+  ASK.sending = false; renderAsk(); askSchedule();
+}
+function askFormHTML(){
+  if(!askCfg()) return `<div class="card p-5 text-sm text-slate-600"><b>💬 網頁提問</b>：尚未啟用（等待一次性設定完成）。目前請在 Google Chat 教練室提問。</div>`;
+  return `<div class="card p-5 border-2 border-sky-200">
+    <div class="font-black text-lg">💬 直接在這裡問教練</div>
+    <textarea id="ask-text" rows="3" maxlength="4000" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();askSend();}" placeholder="例：這週六的長跑可以改到週日嗎？／昨天間歇後小腿有點緊，明天怎麼調整？" class="w-full border rounded-xl p-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-sky-300"></textarea>
+    <div class="flex flex-wrap items-center gap-3 mt-2"><button id="ask-send" onclick="askSend()" class="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-sm">送出</button><span id="ask-status" class="text-xs text-slate-500"></span></div>
+    <div class="text-[11px] text-slate-400 mt-2">Ctrl/⌘ + Enter 也可送出。通常 1–3 分鐘內回覆；這個分頁開著時答案會自動出現，之後也會整理進下方紀錄並同步調整課表。影片／照片請改用 Google Chat 教練室上傳。</div>
+  </div><div id="ask-threads" class="space-y-3"></div>`;
+}
+function renderAsk(){
+  const st = $("#ask-status"), box = $("#ask-threads"), btn = $("#ask-send"); if(!st || !box) return;
+  if(btn){ btn.disabled = ASK.sending; btn.textContent = ASK.sending ? "送出中…" : "送出"; btn.style.opacity = ASK.sending ? .5 : 1; }
+  st.innerHTML = ASK.err ? `<span class="text-rose-600">${esc(ASK.err)}</span>` : esc(ASK.note || "");
+  const done = new Set((D.chat_log||[]).map(e=>e.issue).filter(x=>x!=null));
+  const show = ASK.threads.filter(t=>!done.has(t.number));
+  const when = s => { try{ return new Date(s).toLocaleString("zh-TW", {timeZone:"Asia/Taipei", hour12:false, month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"}); }catch(e){ return String(s||"").slice(0,16).replace("T"," "); } };
+  box.innerHTML = show.map(t=>{ const cs = ((ASK.comments[t.number]||{}).list||[]); const open = t.state==="open";
+    return `<div class="card p-5 stripe" style="border-color:${open?"#f59e0b":"#22c55e"}">
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span class="font-bold">${esc(when(t.created_at))}</span><span class="badge bg-sky-100 text-sky-700">🌐 網頁提問</span>${open ? '<span class="badge bg-amber-100 text-amber-700 pulse">⏳ 教練回覆中…</span>' : '<span class="badge bg-emerald-100 text-emerald-700">✅ 已回覆</span>'}</div>
+      <div class="font-black mt-1 whitespace-pre-line">Q：${esc(t.body || t.title || "")}</div>
+      ${cs.map(c=>`<div class="text-sm text-slate-700 mt-2 leading-relaxed whitespace-pre-line ${/^\s*🤖/u.test(c.body||"") ? "" : "pl-3 border-l-2 border-slate-200"}">${esc(String(c.body||"").replace(/^\s*🤖\s*/u, ""))}</div>`).join("")}
+    </div>`; }).join("");
+}
+
 // ------------------------------------------------------------ coach chat log
 function renderChat(){
   if(isLocked()){ $("#tab-chat").innerHTML = gateHTML("chat"); return; }
   const log = D.chat_log||[];
   $("#tab-chat").innerHTML = `
-  <div class="card p-5"><div class="font-black text-lg">教練室 Q&A（Google Chat 討論整理）</div>
-    <div class="text-sm text-slate-600 mt-1">在 Google Chat「🏃 半馬 87 教練室」提問或上傳跑步影片，教練回覆後會把重點整理到這裡（不受半天同步限制，問完即更新）。</div></div>
+  <div class="card p-5"><div class="font-black text-lg">教練室 Q&A</div>
+    <div class="text-sm text-slate-600 mt-1">可以直接在下方輸入問題，或在 Google Chat 教練室提問／上傳跑步影片；教練回覆後會把重點整理到這裡（不受半天同步限制，問完即更新）。</div></div>
+  ${askFormHTML()}
   ${log.length? log.map(e=>`<div class="card p-5 stripe" style="border-color:${e.kind==="video"?"#a855f7":"#0ea5e9"}">
-      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span class="font-bold">${esc(e.ts)}</span>${e.kind==="video"?'<span class="badge bg-violet-100 text-violet-700">🎥 影片分析</span>':'<span class="badge bg-sky-100 text-sky-700">💬 問答</span>'}${(e.tags||[]).map(t=>`<span class="badge bg-slate-100 text-slate-600">#${esc(t)}</span>`).join("")}</div>
+      <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500"><span class="font-bold">${esc(e.ts)}</span>${e.kind==="video"?'<span class="badge bg-violet-100 text-violet-700">🎥 影片分析</span>':'<span class="badge bg-sky-100 text-sky-700">💬 問答</span>'}${e.issue!=null?'<span class="badge bg-sky-50 text-sky-700">🌐 網頁提問</span>':""}${(e.tags||[]).map(t=>`<span class="badge bg-slate-100 text-slate-600">#${esc(t)}</span>`).join("")}</div>
       <div class="font-black mt-1">Q：${esc(e.question)}</div>
       <div class="text-sm text-slate-700 mt-2 leading-relaxed whitespace-pre-line">${esc(e.answer)}</div>
       ${e.insights&&e.insights.length?`<div class="mt-3 text-sm bg-amber-50 border border-amber-200 rounded-xl p-3"><b>📌 重點／對課表的影響：</b><ul class="list-disc pl-5 mt-1">${e.insights.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>`:""}
     </div>`).join("") : `<div class="card p-6 text-sm text-slate-500">尚無討論紀錄。</div>`}`;
+  renderAsk(); if(askCfg() && chatTabOpen() && Date.now() - ASK.lastLoad > 5000) askLoad();
 }
 
 // ------------------------------------------------------------ method
