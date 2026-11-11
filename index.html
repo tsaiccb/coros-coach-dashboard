@@ -24,6 +24,13 @@
   .kv dt{color:#64748b;white-space:nowrap}.kv dd{color:#0f172a}
   .star{color:#f59e0b}
   .pulse{animation:pulse 2s infinite}@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .dual{position:relative;height:30px}
+  .dual .track,.dual .fill{position:absolute;top:12px;height:6px;border-radius:3px}.dual .track{left:11px;right:11px;background:#e2e8f0}.dual .fill{background:#f97316}
+  .dual input[type=range]{position:absolute;left:0;top:4px;width:100%;margin:0;height:22px;background:none;pointer-events:none;-webkit-appearance:none;appearance:none}
+  .dual input[type=range]::-webkit-slider-runnable-track{height:22px;background:transparent}
+  .dual input[type=range]::-moz-range-track{height:22px;background:transparent}
+  .dual input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;pointer-events:auto;width:22px;height:22px;border-radius:50%;background:#0f172a;border:3px solid #fff;box-shadow:0 1px 5px rgba(15,23,42,.45);cursor:grab}
+  .dual input[type=range]::-moz-range-thumb{pointer-events:auto;width:16px;height:16px;border-radius:50%;background:#0f172a;border:3px solid #fff;box-shadow:0 1px 5px rgba(15,23,42,.45);cursor:grab}
   .fade-in{animation:fade .35s ease-out}@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 </style>
 </head>
@@ -44,7 +51,7 @@
     <nav class="mt-4 flex gap-2 overflow-x-auto scrollbar-thin pb-1" id="tabs">
       <button data-tab="overview" class="tab-btn active whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">總覽</button>
       <button data-tab="plan" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練課表 (8 週)</button>
-      <button data-tab="history" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練紀錄 (20)</button>
+      <button data-tab="history" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">訓練紀錄</button>
       <button data-tab="weekly" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">週統計 (8 週)</button>
       <button data-tab="races" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">賽事 🏁</button>
       <button data-tab="tech" class="tab-btn whitespace-nowrap px-4 py-2 rounded-full bg-slate-800 text-sm font-bold">技術分析</button>
@@ -113,10 +120,10 @@ const segPlugin = { id:"segs", afterDatasetsDraw(chart, args, opts){
 }};
 
 // ------------------------------------------------------------ tabs
-$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); if(b.dataset.tab==="form" && !$("#tab-form").innerHTML) renderFormTab(); });
+$$("#tabs button").forEach(b=>b.onclick=()=>{ $$("#tabs button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); $$(".tab").forEach(t=>t.classList.add("hidden")); $("#tab-"+b.dataset.tab).classList.remove("hidden"); window.scrollTo({top:0,behavior:"smooth"}); if(b.dataset.tab==="weekly") renderWeeklyCharts(); if(b.dataset.tab==="history") loadArchive(); if(b.dataset.tab==="overview") renderOverviewCharts(); if(b.dataset.tab==="wellness") renderWellnessCharts(); if(b.dataset.tab==="tech") renderTechCharts(); if(b.dataset.tab==="calc") calcRun(); if(b.dataset.tab==="form" && !$("#tab-form").innerHTML) renderFormTab(); });
 
 // ------------------------------------------------------------ load
-fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(async d=>{ D=d; await autoUnlock(); renderAll(); }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
+fetch("data.json?t="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(async d=>{ D=d; await autoUnlock(); renderAll(); if(typeof location!=="undefined" && location.hash){ const tb = $$("#tabs button").find(x=>x.dataset.tab===location.hash.slice(1)); if(tb && tb.onclick) tb.onclick(); } }).catch(e=>{ $("#tab-overview").innerHTML = `<div class="card p-6 text-rose-600">資料載入失敗：${esc(e)}</div>`; });
 
 function renderAll(){
   $("#updated").textContent = D.generated_at;
@@ -322,7 +329,7 @@ function renderHistory(){
   const list = ws.filter(w=> histFilter==="all" || (histFilter==="outdoor"&&!w.indoor) || (histFilter==="indoor"&&w.indoor) || (histFilter==="quality"&&["tempo","interval","race"].includes(w.type)) || (histFilter==="long"&&["long","progression"].includes(w.type)));
   const nOut = ws.filter(w=>!w.indoor).length, nIn = ws.length-nOut;
   $("#tab-history").innerHTML = `
-  <div class="card p-4 flex flex-wrap items-center gap-2 justify-between"><div class="flex gap-2 flex-wrap">${chips}</div><div class="text-xs text-slate-500">最近 20 次：戶外 ${nOut} · 室內 ${nIn} · 平均 ${stars(Math.round(ws.reduce((a,w)=>a+w.stars,0)/Math.max(1,ws.length)))}</div></div>
+  <div class="card p-4 flex flex-wrap items-center gap-2 justify-between"><div class="flex gap-2 flex-wrap">${chips}</div><div class="text-xs text-slate-500">最近 20 次（更早的紀錄在本頁最下方「📚 過往紀錄」）：戶外 ${nOut} · 室內 ${nIn} · 平均 ${stars(Math.round(ws.reduce((a,w)=>a+w.stars,0)/Math.max(1,ws.length)))}</div></div>
   <div class="space-y-3">${list.map((w,i)=>`
     <div class="card stripe p-4" style="border-color:${w.type_color}">
       <div class="flex flex-wrap items-start gap-3">
@@ -338,12 +345,151 @@ function renderHistory(){
         </div>
         <div class="text-right shrink-0"><div>${stars(w.stars)}</div><button onclick="openWorkout('${w.labelId}')" class="mt-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">📈 路線 / 圖表</button></div>
       </div>
-    </div>`).join("")}</div>`;
+    </div>`).join("")}</div>
+  <div id="arch" class="space-y-5 pt-4 border-t-2 border-dashed border-slate-300"></div>`;
+  renderArchive();
 }
 
-function openWorkout(id){
-  const w = D.workouts.find(x=>x.labelId===id); if(!w) return;
-  const st = D.streams[id];
+// ------------------------------------------------------------ archive: whole history, browsed by week range (lazy-loaded history.json)
+const ARCH = {data:null, loading:false, err:null, i0:null, i1:null, open:{}, byId:{}, byWeek:{}, detail:{}, quick:"12", _t:null};
+function loadArchive(){
+  if(ARCH.data){ renderArchive(); return; }
+  if(ARCH.loading) return;
+  ARCH.loading = true; ARCH.err = null; renderArchive();
+  fetch("history.json?t="+Date.now(), {cache:"no-store"}).then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }).then(h=>{
+    const idx = {}; h.weeks.forEach((wk,i)=>{ idx[wk.monday] = i; ARCH.byWeek[i] = []; });
+    h.workouts.forEach(w=>{ ARCH.byId[w.labelId] = w; const d = new Date(w.date+"T00:00:00Z"); d.setUTCDate(d.getUTCDate() - (d.getUTCDay()+6)%7); const k = d.toISOString().slice(0,10); if(idx[k]!=null) ARCH.byWeek[idx[k]].push(w); });
+    const n = h.weeks.length; ARCH.i1 = n-1; ARCH.i0 = Math.max(0, n-12); ARCH.open[h.weeks[n-1].monday] = true;
+    ARCH.data = h; ARCH.loading = false; renderArchive();
+  }).catch(e=>{ ARCH.loading = false; ARCH.err = String(e); renderArchive(); });
+}
+function renderArchive(){
+  const el = $("#arch"); if(!el) return;
+  const head = `<div class="flex flex-wrap items-end justify-between gap-2"><div><div class="font-black text-lg">📚 過往紀錄 — 以週為單位自由拉區間</div><div class="text-sm text-slate-600 mt-0.5">拖曳下方兩個圓鈕（或用快捷鍵／下拉選單）選擇起訖週，查看該區間每一週的跑量、配速、心率與每一次訓練。</div></div>`;
+  if(!ARCH.data){
+    el.innerHTML = `<div class="card p-5">${head}</div><div class="mt-3 text-sm">${ARCH.err ? `<span class="text-rose-600">過往紀錄載入失敗（${esc(ARCH.err)}）</span> <button onclick="loadArchive()" class="ml-2 px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">重試</button>` : ARCH.loading ? '<span class="text-slate-500 pulse">過往紀錄載入中…</span>' : '<button onclick="loadArchive()" class="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-bold">載入全部過往紀錄</button>'}</div></div>`;
+    return;
+  }
+  const H = ARCH.data, W = H.weeks, n = W.length;
+  const quick = [["4","近 4 週"],["8","近 8 週"],["12","近 12 週"],["26","近半年"],["52","近一年"],["ytd","今年"],["prev","去年"],["all","全部"]];
+  const opts = W.map((w,i)=>`<option value="${i}">${w.monday.replace(/-/g,"/")} ~ ${w.sunday.slice(5).replace("-","/")}　${w.distance_km} km</option>`).join("");
+  el.innerHTML = `
+  <div class="card p-5">${head}<div class="text-xs text-slate-500 text-right">自 ${H.first_date.replace(/-/g,"/")} 起 · 共 ${n} 週 · ${H.n_workouts} 次訓練<br>較早的訓練依「當時的體能 (VDOT)」評價</div></div>
+    <div class="flex flex-wrap gap-2 mt-3" id="arch-quick">${quick.map(([k,v])=>`<button data-q="${k}" onclick="archQuick('${k}')" class="px-3 py-1.5 rounded-full text-sm font-bold border">${v}</button>`).join("")}</div>
+    <div class="mt-3"><div style="height:64px"><canvas id="ch-arch-nav"></canvas></div>
+      <div class="dual"><div class="track"></div><div class="fill" id="arch-fill"></div>
+        <input type="range" id="arch-r0" min="0" max="${n-1}" step="1" value="${ARCH.i0}" oninput="archSlide(0,this.value)" onchange="archCommit()" aria-label="起始週">
+        <input type="range" id="arch-r1" min="0" max="${n-1}" step="1" value="${ARCH.i1}" oninput="archSlide(1,this.value)" onchange="archCommit()" aria-label="結束週">
+      </div>
+      <div class="flex justify-between text-[10px] text-slate-400 font-mono"><span>${W[0].monday.replace(/-/g,"/")}</span><span>${W[n-1].sunday.replace(/-/g,"/")}</span></div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 mt-2 text-sm">
+      <span class="text-slate-500">起</span><select id="arch-s0" onchange="archSel()" class="border rounded-lg px-2 py-1 font-mono text-xs max-w-[46%]">${opts}</select>
+      <span class="text-slate-500">迄</span><select id="arch-s1" onchange="archSel()" class="border rounded-lg px-2 py-1 font-mono text-xs max-w-[46%]">${opts}</select>
+      <span id="arch-range" class="font-black text-orange-600"></span>
+    </div>
+  </div>
+  <div id="arch-kpi" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+  <div class="grid lg:grid-cols-2 gap-5">
+    <div class="card p-5"><div class="font-black mb-2">區間內各週跑量（依訓練類型）</div><canvas id="ch-arch-km" height="170"></canvas></div>
+    <div class="card p-5"><div class="font-black mb-2">區間內各週平均配速 / 平均心率 / 訓練負荷</div><canvas id="ch-arch-pace" height="170"></canvas></div>
+  </div>
+  <div class="flex items-center justify-between"><div class="font-black">逐週明細（新 → 舊）</div><div class="text-xs"><button onclick="archToggleAll(true)" class="px-2 py-1 rounded border bg-white font-bold">全部展開</button> <button onclick="archToggleAll(false)" class="px-2 py-1 rounded border bg-white font-bold">全部收合</button></div></div>
+  <div id="arch-weeks" class="space-y-3"></div>`;
+  mkChart("ch-arch-nav", {type:"bar", data:{labels:W.map(w=>w.monday), datasets:[{data:W.map(w=>w.distance_km), backgroundColor:W.map(()=>"#cbd5e1"), borderRadius:2, barPercentage:1, categoryPercentage:.9}]},
+    options:{responsive:true, maintainAspectRatio:false, animation:false, layout:{padding:{left:11,right:11}}, plugins:{legend:{display:false}, tooltip:{callbacks:{title:i=>W[i[0].dataIndex].monday.replace(/-/g,"/")+" ~ "+W[i[0].dataIndex].sunday.slice(5).replace("-","/"), label:c=>c.raw+" km"}}},
+      onClick:(ev, els)=>{ if(!els.length) return; const i = els[0].index; if(Math.abs(i-ARCH.i0) <= Math.abs(i-ARCH.i1)) ARCH.i0 = Math.min(i, ARCH.i1); else ARCH.i1 = Math.max(i, ARCH.i0); ARCH.quick = null; archUpdate(); },
+      scales:{x:{display:false}, y:{display:false, beginAtZero:true}}}});
+  archUpdate();
+}
+function archSlide(which, v){ v = +v; if(which===0) ARCH.i0 = Math.min(v, ARCH.i1); else ARCH.i1 = Math.max(v, ARCH.i0); ARCH.quick = null; archSyncControls(); clearTimeout(ARCH._t); ARCH._t = setTimeout(()=>archUpdate(), 200); }
+function archCommit(){ clearTimeout(ARCH._t); archUpdate(); }
+function archSel(){ let a = +$("#arch-s0").value, b = +$("#arch-s1").value; if(a>b){ const t=a; a=b; b=t; } ARCH.i0 = a; ARCH.i1 = b; ARCH.quick = null; archUpdate(); }
+function archQuick(k){
+  const W = ARCH.data.weeks, n = W.length; let a = 0, b = n-1;
+  if(k==="ytd" || k==="prev"){ const y = +W[n-1].monday.slice(0,4) - (k==="prev"?1:0); const ids = W.map((w,i)=>i).filter(i=> +W[i].monday.slice(0,4)===y); if(ids.length){ a = ids[0]; b = ids[ids.length-1]; } }
+  else if(k!=="all"){ a = Math.max(0, n-(+k)); }
+  ARCH.i0 = a; ARCH.i1 = b; ARCH.quick = k; archUpdate();
+}
+function archToggleAll(open){ const W = ARCH.data.weeks; for(let i=ARCH.i0;i<=ARCH.i1;i++) ARCH.open[W[i].monday] = open; archUpdate(); }
+function archSyncControls(){
+  const W = ARCH.data.weeks, n = W.length, a = ARCH.i0, b = ARCH.i1; const r0 = $("#arch-r0"), r1 = $("#arch-r1"); if(!r0 || !r1) return;
+  r0.value = a; r1.value = b; $("#arch-s0").value = a; $("#arch-s1").value = b;
+  r0.style.zIndex = (a===b && a > (n-1)/2) ? 5 : 3; r1.style.zIndex = 4;
+  const f = $("#arch-fill"), p = i => n>1 ? i/(n-1) : 0; f.style.left = `calc(11px + (100% - 22px) * ${p(a)})`; f.style.width = `calc((100% - 22px) * ${p(b)-p(a)})`;
+  $("#arch-range").textContent = `${W[a].monday.replace(/-/g,"/")} ~ ${W[b].sunday.replace(/-/g,"/")}（${b-a+1} 週）`;
+  $$("#arch-quick button").forEach(x=>{ const on = x.dataset.q===ARCH.quick; x.className = "px-3 py-1.5 rounded-full text-sm font-bold border " + (on ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600"); });
+  const c = charts["ch-arch-nav"]; if(c && c.data && c.update){ c.data.datasets[0].backgroundColor = W.map((w,i)=> i>=a && i<=b ? "#f97316" : "#cbd5e1"); c.update("none"); }
+}
+function archUpdate(){
+  const H = ARCH.data, W = H.weeks, a = ARCH.i0, b = ARCH.i1, R = W.slice(a, b+1);
+  archSyncControls();
+  const ws = []; for(let i=a;i<=b;i++) ws.push(...(ARCH.byWeek[i]||[]));
+  const dist = R.reduce((s,w)=>s+(w.distance_km||0),0), dur = R.reduce((s,w)=>s+(w.duration_s||0),0), runs = R.reduce((s,w)=>s+(w.runs||0),0), q = R.reduce((s,w)=>s+(w.quality_sessions||0),0);
+  const hrW = ws.filter(w=>w.avg_hr && w.distance_km), hrD = hrW.reduce((s,w)=>s+w.distance_km,0), hr = hrD ? Math.round(hrW.reduce((s,w)=>s+w.avg_hr*w.distance_km,0)/hrD) : null;
+  const longest = ws.reduce((m,w)=> (w.distance_km||0) > (m ? m.distance_km : 0) ? w : m, null);
+  const peak = R.reduce((m,w)=> (w.distance_km||0) > (m ? m.distance_km : -1) ? w : m, null);
+  const full = R.filter(w=>!w.isCurrent), avgWk = full.length ? full.reduce((s,w)=>s+(w.distance_km||0),0)/full.length : dist;
+  const indoor = R.reduce((s,w)=>s+(w.indoor_km||0),0);
+  const kpi = [["總跑量", dist.toFixed(1)+" km", `室內 ${indoor.toFixed(0)} · 戶外 ${(dist-indoor).toFixed(0)} km`], ["週均跑量", avgWk.toFixed(1)+" km", full.length<R.length ? "不含進行中的本週" : `${R.length} 週平均`], ["訓練次數", runs+" 次", `品質課 ${q} 堂`], ["總時間", fmtTime(dur), dist>0 ? `每次平均 ${(dist/Math.max(1,runs)).toFixed(1)} km` : ""],
+    ["平均配速", dist>0 ? fmtPace(dur/dist)+" /km" : "-", "全部訓練加權"], ["平均心率", hr ? hr+" bpm" : "-", hr ? `${pct(hr, D.athlete.hrmax)}% HRmax` : ""], ["最長單次", longest ? longest.distance_km+" km" : "-", longest ? longest.date.replace(/-/g,"/") : ""], ["最高週跑量", peak ? peak.distance_km+" km" : "-", peak ? peak.monday.replace(/-/g,"/")+" 當週" : ""]];
+  $("#arch-kpi").innerHTML = kpi.map(k=>`<div class="card p-3"><div class="text-[11px] text-slate-500 font-bold">${k[0]}</div><div class="text-xl font-black font-mono">${k[1]}</div><div class="text-[11px] text-slate-500">${k[2]}</div></div>`).join("");
+  const multiYear = R.length && R[0].monday.slice(0,4) !== R[R.length-1].monday.slice(0,4);
+  const labels = R.map(w=> multiYear ? w.monday.slice(2).replace(/-/g,"/") : w.monday.slice(5).replace("-","/"));
+  const title = i => R[i[0].dataIndex].monday.replace(/-/g,"/")+" ~ "+R[i[0].dataIndex].sunday.slice(5).replace("-","/")+"（"+R[i[0].dataIndex].distance_km+" km）";
+  const types = ["recovery","easy","long","progression","tempo","interval","race","strides"];
+  mkChart("ch-arch-km", {type:"bar", data:{labels, datasets:types.map(t=>({label:TYPE_LABEL[t], data:R.map(w=>(w.by_type||{})[t]||0), backgroundColor:TYPE_COLOR[t], stack:"a"}))}, options:{animation:false, plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{title}}}, scales:{x:{stacked:true, ticks:{maxTicksLimit:16}}, y:{stacked:true, title:{display:true, text:"km"}}}}});
+  mkChart("ch-arch-pace", {type:"bar", data:{labels, datasets:[
+    {type:"line", label:"平均配速", data:R.map(w=>w.pace_s ? w.pace_s/60 : null), borderColor:"#0ea5e9", backgroundColor:"#0ea5e9", yAxisID:"y", tension:.3, spanGaps:true, pointRadius:R.length>40?0:3},
+    {type:"line", label:"平均心率", data:R.map(w=>w.avg_hr), borderColor:"#ef4444", backgroundColor:"#ef4444", yAxisID:"y2", tension:.3, spanGaps:true, pointRadius:R.length>40?0:3},
+    {type:"bar", label:"訓練負荷", data:R.map(w=>w.load||0), backgroundColor:"#e2e8f0", yAxisID:"y3", order:10}]},
+    options:{animation:false, interaction:{mode:"index", intersect:false}, plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{title, label:c=> c.dataset.yAxisID==="y" ? "配速 "+fmtPace(c.raw*60)+"/km" : c.dataset.label+" "+(c.raw==null?"-":c.raw)}}},
+      scales:{x:{ticks:{maxTicksLimit:16}}, y:{reverse:true, ticks:{callback:v=>fmtPace(v*60)}, title:{display:true, text:"配速"}}, y2:{position:"right", grid:{drawOnChartArea:false}, title:{display:true, text:"bpm"}}, y3:{display:false, beginAtZero:true}}}});
+  const out = []; for(let i=b;i>=a;i--) out.push(archWeekCard(i));
+  $("#arch-weeks").innerHTML = out.join("");
+}
+function archWeekCard(i){
+  const w = ARCH.data.weeks[i], ws = (ARCH.byWeek[i]||[]).slice().sort((x,y)=> (x.start_local||x.date) < (y.start_local||y.date) ? -1 : 1);
+  const tot = w.distance_km || 0, order = ["race","interval","tempo","progression","long","easy","recovery","strides"];
+  const bar = order.filter(t=>(w.by_type||{})[t] > 0).map(t=>`<div title="${TYPE_LABEL[t]||t} ${w.by_type[t]} km" style="width:${pct(w.by_type[t], tot)}%;background:${TYPE_COLOR[t]||"#cbd5e1"}"></div>`).join("");
+  const chips = order.filter(t=>(w.by_type||{})[t] > 0).map(t=>`<span class="badge" style="background:${TYPE_COLOR[t]}22;color:${t==="strides"?"#64748b":TYPE_COLOR[t]}">${TYPE_LABEL[t]||t} ${w.by_type[t]} km</span>`).join(" ");
+  return `<details class="card overflow-hidden" ${ARCH.open[w.monday] ? "open" : ""} ontoggle="ARCH.open['${w.monday}']=this.open">
+    <summary class="p-4">
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div class="font-black whitespace-nowrap">${w.monday.replace(/-/g,"/")} ~ ${w.sunday.slice(5).replace("-","/")}${w.isCurrent ? ' <span class="badge bg-orange-100 text-orange-700">本週</span>' : ""}</div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm font-mono text-slate-700"><span><b class="text-base">${w.distance_km}</b> km</span><span>${w.runs} 次</span><span>⏱ ${fmtTime(w.duration_s)}</span><span>⚡ ${w.pace}/km</span><span>❤️ ${w.avg_hr||"-"}</span><span>🛣 最長 ${w.longest_km}</span><span>🔥 品質課 ${w.quality_sessions}</span>${w.load ? `<span>📊 負荷 ${w.load}</span>` : ""}</div>
+        <div class="ml-auto text-slate-400 text-xs whitespace-nowrap">${ws.length ? "點擊展開／收合 ▾" : "本週無訓練"}</div>
+      </div>
+      <div class="mt-2 h-2 rounded bg-slate-100 overflow-hidden flex">${bar}</div>
+    </summary>
+    <div class="px-4 pb-4">
+      <div class="flex flex-wrap gap-1.5">${chips}</div>
+      ${w.comment ? `<div class="text-xs text-slate-600 mt-2">📝 ${esc(w.comment)}</div>` : ""}
+      ${ws.length ? `<div class="overflow-x-auto scrollbar-thin mt-2"><table class="w-full text-sm"><thead><tr class="text-left text-slate-500 border-b text-xs"><th class="py-1">日期</th><th>類型</th><th>內容 / 教練評語</th><th class="text-right">km</th><th class="text-right">時間</th><th class="text-right">配速</th><th class="text-right">心率</th><th class="text-right">步頻</th><th class="text-right">負荷</th><th class="text-right">評分</th><th></th></tr></thead><tbody>
+      ${ws.map(x=>`<tr class="border-b border-slate-100 align-top">
+        <td class="py-1.5 whitespace-nowrap font-bold">${x.date.slice(5).replace("-","/")} <span class="text-slate-400 font-normal text-xs">${x.weekday||""}</span><div class="text-[10px] text-slate-400 font-normal font-mono">${(x.start_local||"").slice(11)}</div></td>
+        <td class="py-1.5 whitespace-nowrap"><span class="badge" style="background:${x.type_color}22;color:${x.type==="strides"?"#64748b":x.type_color}">${x.type_label}</span><div class="text-[10px] text-slate-500 mt-0.5">${x.indoor ? "🏠 室內" : "🌳 "+esc(x.location||"戶外")}</div></td>
+        <td class="py-1.5 min-w-[230px]"><details><summary><span class="font-bold text-slate-800">${esc(x.title ? x.title+"｜" : "")}${esc(x.summary)}</span>${x.coach_override ? ' <span class="badge bg-fuchsia-100 text-fuchsia-700">教練覆核</span>' : ""} <span class="text-sky-600 text-xs whitespace-nowrap">評語 ▾</span></summary><div class="text-xs text-slate-600 leading-relaxed mt-1">${esc(x.evaluation)}${x.next_step ? `<div class="mt-1 text-sky-700"><b>下一步：</b>${esc(x.next_step)}</div>` : ""}</div></details></td>
+        <td class="py-1.5 text-right font-mono font-bold">${x.distance_km ?? "-"}</td><td class="py-1.5 text-right font-mono">${fmtTime(x.duration_s)}</td><td class="py-1.5 text-right font-mono font-bold">${fmtPace(x.pace_s)}</td><td class="py-1.5 text-right font-mono whitespace-nowrap">${x.avg_hr||"-"}${x.max_hr ? "/"+Math.round(x.max_hr) : ""}</td><td class="py-1.5 text-right font-mono">${x.cadence ? Math.round(x.cadence) : "-"}</td><td class="py-1.5 text-right font-mono">${x.training_load ? Math.round(x.training_load) : "-"}</td><td class="py-1.5 text-right whitespace-nowrap text-xs">${stars(x.stars||0)}</td>
+        <td class="py-1.5 text-right">${x.detail ? `<button onclick="openArchWorkout('${x.labelId}')" class="px-2 py-1 rounded-lg bg-slate-900 text-white text-[11px] font-bold whitespace-nowrap">📈 路線/圖表</button>` : `<button onclick="openArchWorkout('${x.labelId}')" class="px-2 py-1 rounded-lg border text-slate-500 text-[11px] font-bold whitespace-nowrap" title="逐秒資料 (FIT) 尚未回補，僅有摘要">摘要</button>`}</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+    </div></details>`;
+}
+function openArchWorkout(id){
+  const b = ARCH.byId[id]; if(!b) return;
+  if(D.workouts.some(x=>x.labelId===id)) return openWorkout(id);
+  if(b.detail==="hist"){
+    if(ARCH.detail[id]) return openWorkout(id, ARCH.detail[id].w, ARCH.detail[id].stream);
+    fetch("hist/"+id+".json").then(r=>{ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); }).then(j=>{ ARCH.detail[id] = j; openWorkout(id, j.w, j.stream); }).catch(()=>openWorkout(id, b, null));
+    return;
+  }
+  openWorkout(id, b, null);
+}
+
+
+function openWorkout(id, wArg, stArg){
+  const w = wArg || D.workouts.find(x=>x.labelId===id); if(!w) return;
+  const st = wArg ? stArg : D.streams[id];
   const zt = w.zone_time||[0,0,0,0,0], ztot = zt.reduce((a,b)=>a+b,0)||1;
   const laps = (st&&st.laps||[]).filter(l=>l.dist_m>50);
   $("#modal-body").innerHTML = `
