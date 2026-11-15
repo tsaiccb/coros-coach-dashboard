@@ -93,7 +93,7 @@ const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 let D = null; const charts = {}; let map = null;
 const TYPE_LABEL = {recovery:"恢復跑", easy:"輕鬆跑", long:"長距離", progression:"漸速長跑", tempo:"閾值/節奏", interval:"間歇", race:"比賽/測驗", strides:"短程", rest:"休息", other:"其他"};
 const TYPE_COLOR = {recovery:"#94a3b8", easy:"#22c55e", long:"#3b82f6", progression:"#6366f1", tempo:"#f97316", interval:"#ef4444", race:"#a855f7", strides:"#cbd5e1", rest:"#e2e8f0", other:"#cbd5e1"};
-const STATUS = {hit:["✅ 已完成","bg-emerald-100 text-emerald-700"], partial:["🟡 部分達成","bg-amber-100 text-amber-700"], diff:["🔁 內容不同","bg-sky-100 text-sky-700"], missed:["❌ 未執行","bg-rose-100 text-rose-700"], rest_ok:["✔ 休息","bg-slate-100 text-slate-500"], today:["📍 今天","bg-orange-500 text-white pulse"], today_done:["📍 今天 ✅","bg-emerald-500 text-white"], upcoming:["",""]};
+const STATUS = {hit:["✅ 已完成","bg-emerald-100 text-emerald-700"], partial:["🟡 部分達成","bg-amber-100 text-amber-700"], over:["🟡 超出課表","bg-amber-100 text-amber-700"], diff:["🔁 內容不同","bg-sky-100 text-sky-700"], missed:["❌ 未執行","bg-rose-100 text-rose-700"], rest_ok:["✔ 休息","bg-slate-100 text-slate-500"], today:["📍 今天","bg-orange-500 text-white pulse"], today_done:["📍 今天 ✅","bg-emerald-500 text-white"], upcoming:["",""]};
 const fmtPace = s => (s==null||!isFinite(s)||s<=0) ? "-" : `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`;
 const fmtTime = s => { if(s==null) return "-"; s=Math.round(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60; return h? `${h}:${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}` : `${m}:${String(x).padStart(2,"0")}`; };
 const stars = n => '<span class="star">'+"★".repeat(n)+'</span><span class="text-slate-300">'+"★".repeat(5-n)+'</span>';
